@@ -61,6 +61,25 @@ public class RiderController : MonoBehaviour
     float verticalVelocity = 0f;
     float airHeight = 0f;
 
+    // A flip's rotation speed is set once, at the moment it's triggered, to
+    // exactly (360 degrees / time left in the air) - computed from the
+    // current vertical velocity and height via basic projectile kinematics.
+    // That guarantees the flip always completes exactly as the rider lands,
+    // regardless of how big or small the jump is: a short hop spins fast to
+    // finish in time, a big jump spins slowly since there's more airtime to
+    // fill.
+    //
+    // The rider stands sideways on the board (shoulder line along the
+    // direction of travel, local Z), so a real front/backflip - a tumble
+    // through the rider's own sagittal plane - rotates around that same Z
+    // axis, exactly like the carve lean (tilt) already does. Rotating around
+    // X instead (perpendicular to travel) would tumble the body through its
+    // frontal plane, which reads as a sideways cartwheel rather than a
+    // front/backflip - that was the bug.
+    bool isFlipping = false;
+    float flipSpinDeg = 0f;
+    float flipSpeedDegPerSec = 0f;
+
     void Update()
     {
         if (boat == null) return;
@@ -68,8 +87,8 @@ public class RiderController : MonoBehaviour
         bool isAirborne = airHeight > 0f;
 
         float inputSign = 0f;
-        if (Input.GetKey(KeyCode.LeftArrow)) inputSign -= 1f;
-        if (Input.GetKey(KeyCode.RightArrow)) inputSign += 1f;
+        if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A)) inputSign -= 1f;
+        if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D)) inputSign += 1f;
 
         if (!isAirborne)
         {
@@ -122,14 +141,49 @@ public class RiderController : MonoBehaviour
             verticalVelocity = 0f;
         }
 
+        bool nowGrounded = airHeight <= 0f;
+
         if (boardSplash != null)
         {
-            bool nowGrounded = airHeight <= 0f;
             boardSplash.SetContinuous(nowGrounded);
             if (isAirborne && nowGrounded)
             {
                 boardSplash.Burst(landingSplashCount);
             }
+        }
+
+        if (nowGrounded)
+        {
+            isFlipping = false;
+            flipSpinDeg = 0f;
+        }
+        else if (!isFlipping)
+        {
+            // GetKey (not GetKeyDown) so holding the key before takeoff arms
+            // the flip - it fires the instant the rider leaves the water,
+            // instead of requiring a fresh press after they're already airborne.
+            bool frontInput = Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W);
+            bool backInput = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S);
+            if (frontInput || backInput)
+            {
+                float discriminant = Mathf.Max(verticalVelocity * verticalVelocity + 2f * gravity * airHeight, 0f);
+                float remainingAirTime = (verticalVelocity + Mathf.Sqrt(discriminant)) / gravity;
+                remainingAirTime = Mathf.Max(remainingAirTime, 0.001f);
+
+                // Negative Z rotation leans/spins the rider toward +boat.right
+                // (screen-right from the chase camera) - matching how a
+                // positive carve angle already produces a negative tilt in
+                // that same direction below. Frontflip spins that way (right),
+                // backflip the other way (left).
+                float direction = frontInput ? -1f : 1f;
+                flipSpeedDegPerSec = direction * 360f / remainingAirTime;
+                isFlipping = true;
+            }
+        }
+
+        if (isFlipping)
+        {
+            flipSpinDeg += flipSpeedDegPerSec * Time.deltaTime;
         }
 
         float lateralOffset = Mathf.Sin(angle) * ropeLength;
@@ -141,6 +195,6 @@ public class RiderController : MonoBehaviour
         transform.position = targetPos;
 
         float tilt = Mathf.Clamp(-angle * Mathf.Rad2Deg, -40f, 40f);
-        transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y, tilt);
+        transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y, tilt + flipSpinDeg);
     }
 }
