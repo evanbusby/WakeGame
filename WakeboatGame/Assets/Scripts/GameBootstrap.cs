@@ -22,8 +22,8 @@ public class GameBootstrap : MonoBehaviour
         boat.name = "Boat";
         boat.transform.position = new Vector3(0f, 0.5f, 0f);
         boat.transform.localScale = new Vector3(1.5f, 1f, 3f);
-        SetColor(boat, new Color(0.6f, 0.2f, 0.1f));
         boat.AddComponent<BoatMover>();
+        boat.AddComponent<BoatRig>();
 
         GameObject roosterTail = new GameObject("RoosterTail");
         roosterTail.transform.SetParent(boat.transform, false);
@@ -111,14 +111,5 @@ public class GameBootstrap : MonoBehaviour
         features.stripHalfLength = zScale * 5f;
         features.side = side;
         features.Generate();
-    }
-
-    void SetColor(GameObject go, Color color)
-    {
-        Renderer r = go.GetComponent<Renderer>();
-        if (r != null)
-        {
-            r.material.color = color;
-        }
     }
 }

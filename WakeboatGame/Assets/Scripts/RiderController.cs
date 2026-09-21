@@ -190,6 +190,28 @@ public class RiderController : MonoBehaviour
     float raleyRecoverDuration = 0f;
     float raleyPeakBlend = 0f;
 
+    // A lightweight pose layer, separate from the trick mechanics above: it
+    // reads the same physics state (carve speed, edge lean, airborne state,
+    // landing) to bend the knees, lean the torso, counter-roll the upper
+    // body against the carve lean, and extend the arms - so the rider
+    // looks physically connected to the board and rope without changing
+    // any of the simulation above. It runs unconditionally every frame,
+    // including during flips/raley/spins: RiderRig.SetRaleyBlend blends
+    // FROM this pose rather than from a fixed neutral, so a raley eases
+    // out of whatever natural stance the rider was already in instead of
+    // snapping from a rigid default, and a flip (which only ever rotates
+    // the whole rig's root, never individual parts) just carries this
+    // pose's crouch/lean along with it for free.
+    public float referenceCarveSpeed = 1.2f;
+    public float maxTorsoPitchDeg = 12f;
+    public float counterRollFraction = 0.35f;
+    public float baseCrouch = 0.12f;
+    public float carveCrouchExtra = 0.35f;
+    public float airborneCrouch = 0.28f;
+    public float landingImpactCrouch = 0.45f;
+    public float landingImpactDuration = 0.2f;
+    float landingImpactTimer = 0f;
+
     float angle = 0f;
     float angularVelocity = 0f;
     float prevAngle = 0f;
@@ -345,6 +367,7 @@ public class RiderController : MonoBehaviour
             if (isAirborne && nowGrounded)
             {
                 boardSplash.Burst(landingSplashCount);
+                landingImpactTimer = landingImpactDuration;
             }
         }
 
@@ -402,22 +425,6 @@ public class RiderController : MonoBehaviour
             flipSpinDeg += flipSpeedDegPerSec * Time.deltaTime;
         }
 
-        float raleyBlend = 0f;
-        if (isRaleying)
-        {
-            raleyTimer += Time.deltaTime;
-            raleyBlend = RaleyBlend();
-        }
-        if (rig != null) rig.SetRaleyBlend(raleyBlend);
-
-        float lateralOffset = Mathf.Sin(angle) * ropeLength;
-        float forwardDistance = Mathf.Cos(angle) * ropeLength;
-
-        Vector3 towPoint = boat.position + boat.up * towPointOffset.y + boat.forward * towPointOffset.z;
-        Vector3 targetPos = towPoint - boat.forward * forwardDistance + boat.right * lateralOffset;
-        targetPos.y = baseHeight + airHeight;
-        transform.position = targetPos;
-
         // edgeLean/inputSign are boat-relative (D always steers toward
         // boat.right, matching the swing physics above). tilt is a roll
         // around the rig's pre-yaw Z axis, so its visible lean direction
@@ -435,8 +442,59 @@ public class RiderController : MonoBehaviour
         // alone is what mirrors the on-screen tilt between stances, so
         // applying stanceSign here too would mirror it a second time,
         // right back to backwards.
+        //
+        // Computed here (rather than down by transform.rotation, where it's
+        // used) because the dynamic pose below needs tilt too, to counter-
+        // roll the upper body against it.
         float tilt = -edgeLean * maxLeanDeg * stanceSign;
         float boardYaw = edgeLean * maxBoardYawDeg;
+
+        // Carve intensity drives how deep the knees bend, how far the
+        // torso pitches forward into the turn, and how far the arms
+        // extend - all frozen along with angularVelocity/edgeLean once
+        // airborne, so a hard-carved jump keeps its aggressive lean
+        // through the whole flight instead of relaxing mid-air.
+        float carveIntensity = Mathf.Clamp01(Mathf.Abs(angularVelocity) / referenceCarveSpeed);
+
+        // A brief extra crouch right on touchdown, decaying back to the
+        // normal stance - the rider absorbing the landing rather than
+        // stopping dead in whatever pose they flew in with.
+        landingImpactTimer = Mathf.Max(0f, landingImpactTimer - Time.deltaTime);
+        float landingImpactFactor = landingImpactDuration > 0f
+            ? landingImpactCrouch * (landingImpactTimer / landingImpactDuration)
+            : 0f;
+
+        float crouch = baseCrouch + carveCrouchExtra * carveIntensity;
+        if (!nowGrounded) crouch = Mathf.Max(crouch, airborneCrouch);
+        crouch = Mathf.Clamp01(crouch + landingImpactFactor);
+
+        float torsoPitchDeg = maxTorsoPitchDeg * carveIntensity;
+
+        // Counters a fraction of the whole-body tilt above: the legs/board
+        // (driven by the root's own rotation) lean hard into the carve
+        // while the torso/head/arms stay comparatively more upright, the
+        // hip/shoulder separation real riders counter-balance a hard edge
+        // with.
+        float counterRollDeg = -tilt * counterRollFraction;
+
+        if (rig != null) rig.SetDynamicPose(crouch, torsoPitchDeg, counterRollDeg, carveIntensity);
+
+        float raleyBlend = 0f;
+        if (isRaleying)
+        {
+            raleyTimer += Time.deltaTime;
+            raleyBlend = RaleyBlend();
+        }
+        if (rig != null) rig.SetRaleyBlend(raleyBlend);
+
+        float lateralOffset = Mathf.Sin(angle) * ropeLength;
+        float forwardDistance = Mathf.Cos(angle) * ropeLength;
+
+        Vector3 towPoint = boat.position + boat.up * towPointOffset.y + boat.forward * towPointOffset.z;
+        Vector3 targetPos = towPoint - boat.forward * forwardDistance + boat.right * lateralOffset;
+        targetPos.y = baseHeight + airHeight;
+        transform.position = targetPos;
+
         transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y + spinDeg + boardYaw, tilt + flipSpinDeg);
     }
 

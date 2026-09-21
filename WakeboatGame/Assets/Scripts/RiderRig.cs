@@ -23,6 +23,18 @@ public class RiderRig : MonoBehaviour
         public Vector3 raleyPos;
         public Quaternion raleyRot;
 
+        // The live "resting" pose SetRaleyBlend blends FROM (toward
+        // raleyPos/raleyRot) instead of blending from neutralPos/neutralRot
+        // directly. SetDynamicPose updates these every frame for the parts
+        // it drives (legs/torso/head/arms - not the board), so a raley
+        // eases out of whatever natural carving/airborne stance the rider
+        // was already holding rather than snapping from a rigid default.
+        // Defaults to neutral so parts SetDynamicPose doesn't touch (the
+        // board) are simply always at their neutral pose until a raley
+        // moves them.
+        public Vector3 basePos;
+        public Quaternion baseRot;
+
         public PosedPart(Transform t, Vector3 raleyPos, Vector3 raleyEuler)
         {
             transform = t;
@@ -30,16 +42,22 @@ public class RiderRig : MonoBehaviour
             neutralRot = t.localRotation;
             this.raleyPos = raleyPos;
             raleyRot = Quaternion.Euler(raleyEuler);
+            basePos = neutralPos;
+            baseRot = neutralRot;
         }
     }
 
     PosedPart[] posedParts;
 
     // Referenced individually (in addition to sitting in posedParts) so
-    // SetRaleyDirection can re-aim just these three per launch - see there.
+    // SetRaleyDirection/SetDynamicPose can re-aim specific parts - see there.
     PosedPart boardPosed;
     PosedPart legLPosed;
     PosedPart legRPosed;
+    PosedPart torsoPosed;
+    PosedPart headPosed;
+    PosedPart armLPosed;
+    PosedPart armRPosed;
 
     void Awake()
     {
@@ -106,16 +124,53 @@ public class RiderRig : MonoBehaviour
         legLPosed = new PosedPart(legL.transform, new Vector3(0.5f, 0.55f, -0.85f), new Vector3(-40f, 0f, 0f));
         legRPosed = new PosedPart(legR.transform, new Vector3(-0.5f, 0.55f, -0.85f), new Vector3(-40f, 0f, 0f));
 
+        torsoPosed = new PosedPart(torso.transform, new Vector3(0f, 0.70f, 0.15f), new Vector3(70f, 0f, 0f));
+        headPosed = new PosedPart(head.transform, new Vector3(0f, 0.85f, 0.65f), Vector3.zero);
+        armLPosed = new PosedPart(armL.transform, new Vector3(0.08f, 0.80f, 1.0f), new Vector3(20f, 0f, 10f));
+        armRPosed = new PosedPart(armR.transform, new Vector3(-0.08f, 0.80f, 1.0f), new Vector3(20f, 0f, -10f));
+
         posedParts = new PosedPart[]
         {
-            boardPosed,
-            legLPosed,
-            legRPosed,
-            new PosedPart(torso.transform, new Vector3(0f, 0.70f, 0.15f), new Vector3(70f, 0f, 0f)),
-            new PosedPart(head.transform, new Vector3(0f, 0.85f, 0.65f), Vector3.zero),
-            new PosedPart(armL.transform, new Vector3(0.08f, 0.80f, 1.0f), new Vector3(20f, 0f, 10f)),
-            new PosedPart(armR.transform, new Vector3(-0.08f, 0.80f, 1.0f), new Vector3(20f, 0f, -10f)),
+            boardPosed, legLPosed, legRPosed, torsoPosed, headPosed, armLPosed, armRPosed,
         };
+    }
+
+    // Everyday reaction to carving/airborne/landing state, layered under
+    // the raley (see PosedPart.basePos/baseRot above) rather than fighting
+    // it. Deliberately simple - a bent-knee crouch, a forward torso lean,
+    // a counter-roll to fake hip/shoulder separation, and reaching arms -
+    // rather than a full secondary animation system.
+    //   crouch: 0 standing, 1 deepest bend (legs/torso/head drop and the
+    //     legs bend forward slightly).
+    //   torsoPitchDeg: forward lean of the torso/head/arms into the carve.
+    //   counterRollDeg: torso/head/arms roll opposite the whole-body tilt
+    //     already applied at the rig root, so the upper body reads as
+    //     comparatively more upright than the hard-leaning legs/board.
+    //   armExtend: 0 relaxed, 1 reaching/straightened.
+    public void SetDynamicPose(float crouch, float torsoPitchDeg, float counterRollDeg, float armExtend)
+    {
+        crouch = Mathf.Clamp01(crouch);
+        armExtend = Mathf.Clamp01(armExtend);
+
+        Vector3 legOffset = new Vector3(0f, -crouch * 0.10f, 0f);
+        Quaternion legRot = Quaternion.Euler(crouch * 8f, 0f, 0f);
+        legLPosed.basePos = legLPosed.neutralPos + legOffset;
+        legLPosed.baseRot = legRot;
+        legRPosed.basePos = legRPosed.neutralPos + legOffset;
+        legRPosed.baseRot = legRot;
+
+        torsoPosed.basePos = torsoPosed.neutralPos + new Vector3(0f, -crouch * 0.08f, 0f);
+        torsoPosed.baseRot = Quaternion.Euler(torsoPitchDeg, 0f, counterRollDeg);
+
+        headPosed.basePos = headPosed.neutralPos + new Vector3(0f, -crouch * 0.08f, 0f);
+        headPosed.baseRot = Quaternion.Euler(0f, 0f, counterRollDeg * 0.6f);
+
+        float armPitch = Mathf.Lerp(-60f, -42f, armExtend);
+        float armSpread = Mathf.Lerp(15f, 10f, armExtend);
+        armLPosed.basePos = armLPosed.neutralPos + new Vector3(0f, -crouch * 0.05f, armExtend * 0.12f);
+        armLPosed.baseRot = Quaternion.Euler(armPitch, 0f, armSpread + counterRollDeg);
+        armRPosed.basePos = armRPosed.neutralPos + new Vector3(0f, -crouch * 0.05f, -armExtend * 0.12f);
+        armRPosed.baseRot = Quaternion.Euler(armPitch, 0f, -armSpread + counterRollDeg);
     }
 
     // Re-aims the board/legs raley targets for whichever of the two
@@ -134,14 +189,16 @@ public class RiderRig : MonoBehaviour
         legRPosed.raleyPos = new Vector3(-0.5f * yawSign, legRPosed.raleyPos.y, legRPosed.raleyPos.z);
     }
 
-    // t=0 is the normal standing stance, t=1 is fully laid out in the raley.
+    // t=0 is the current dynamic pose (see SetDynamicPose - call that
+    // first each frame so basePos/baseRot are up to date), t=1 is fully
+    // laid out in the raley.
     public void SetRaleyBlend(float t)
     {
         t = Mathf.Clamp01(t);
         foreach (PosedPart p in posedParts)
         {
-            p.transform.localPosition = Vector3.Lerp(p.neutralPos, p.raleyPos, t);
-            p.transform.localRotation = Quaternion.Slerp(p.neutralRot, p.raleyRot, t);
+            p.transform.localPosition = Vector3.Lerp(p.basePos, p.raleyPos, t);
+            p.transform.localRotation = Quaternion.Slerp(p.baseRot, p.raleyRot, t);
         }
     }
 

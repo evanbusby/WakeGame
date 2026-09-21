@@ -1,5 +1,11 @@
 using UnityEngine;
 
+// A lightweight, code-only stand-in for the boat's wake: no fluid sim, no
+// per-frame mesh deformation - just a handful of LineRenderer ribbons
+// sharing one procedurally-generated foam texture, matching the rest of
+// this project's "no imported textures/assets" style (see WaterScroll).
+// Purely cosmetic - RiderController has its own independent wakeAngleDeg
+// for where the rider actually launches, so nothing here touches physics.
 public class WakeRenderer : MonoBehaviour
 {
     public Transform boat;
@@ -9,6 +15,13 @@ public class WakeRenderer : MonoBehaviour
     public float wakeAngleDeg = 19.47f;
     public float wakeLength = 60f;
     public float sternZOffset = -1.5f;
+
+    // The boat's immediate prop-wash trough: a wide, short patch of foam
+    // running straight back from the stern (not diverging like the two
+    // side trails), roughly covering the area a rider actually rides and
+    // jumps from.
+    public float centralWakeLength = 18f;
+    public float centralWakeWidth = 3f;
 
     // The wake decal must sit at the water surface, not at the boat's own
     // height. boat.position.y (0.5) is the hull's height above the water,
@@ -29,73 +42,61 @@ public class WakeRenderer : MonoBehaviour
     // rider's board.
     public float waterHeight = 0.02f;
 
-    // Foam along each wake edge, sparse near the boat and building up toward
-    // the far end - which is also the end nearest the camera (the camera
-    // trails even further behind the boat than the wake's near end), so
-    // "builds up toward the far end" is the same thing as "builds up toward
-    // the bottom of the screen".
-    public int foamPointsPerSide = 14;
-    public float foamRateNear = 0f;
-    public float foamRateFar = 16f;
-    public Color foamColor = new Color(0.85f, 0.92f, 1f, 0.8f);
+    // How fast the foam texture's UV drifts along each ribbon's length, for
+    // a cheap sense of the foam churning/flowing rather than sitting static.
+    public float foamScrollSpeed = 0.6f;
 
-    LineRenderer leftLine;
-    LineRenderer rightLine;
-    SplashEffect[] leftFoam;
-    SplashEffect[] rightFoam;
+    // Points per ribbon - just enough for the width/fade curves below to
+    // read as smooth tapers rather than a single straight-sided wedge.
+    const int RibbonResolution = 8;
+
+    Material foamMaterial;
+    LineRenderer leftTrail;
+    LineRenderer rightTrail;
+    LineRenderer centralWake;
+    Vector2 foamOffset;
 
     void Awake()
     {
-        leftLine = CreateLine("WakeLeft");
-        rightLine = CreateLine("WakeRight");
-        leftFoam = CreateFoamRow("WakeFoamLeft");
-        rightFoam = CreateFoamRow("WakeFoamRight");
+        foamMaterial = new Material(Shader.Find("Sprites/Default"));
+        foamMaterial.mainTexture = CreateFoamTexture();
+        foamMaterial.mainTextureScale = new Vector2(1f, 6f);
+
+        // Narrow where it peels off the hull, quickly fanning out - the
+        // classic V-wake spreading-and-fading-with-distance look.
+        AnimationCurve trailWidth = new AnimationCurve(
+            new Keyframe(0f, 0.3f),
+            new Keyframe(0.2f, 1f),
+            new Keyframe(1f, 1.6f));
+        leftTrail = CreateRibbon("WakeTrailLeft", 0.6f, trailWidth,
+            new Color(1f, 1f, 1f, 0.8f), new Color(1f, 1f, 1f, 0f));
+        rightTrail = CreateRibbon("WakeTrailRight", 0.6f, trailWidth,
+            new Color(1f, 1f, 1f, 0.8f), new Color(1f, 1f, 1f, 0f));
+
+        // Wide right behind the boat, tapering as the churn settles - the
+        // bigger foam patch the rider actually rides and jumps out of.
+        AnimationCurve centralWidth = new AnimationCurve(
+            new Keyframe(0f, 1f),
+            new Keyframe(0.4f, 0.85f),
+            new Keyframe(1f, 0.3f));
+        centralWake = CreateRibbon("WakeCentral", centralWakeWidth, centralWidth,
+            new Color(1f, 1f, 1f, 0.9f), new Color(1f, 1f, 1f, 0f));
     }
 
-    SplashEffect[] CreateFoamRow(string rowName)
+    LineRenderer CreateRibbon(string rendererName, float widthMultiplier, AnimationCurve widthCurve, Color startColor, Color endColor)
     {
-        SplashEffect[] row = new SplashEffect[foamPointsPerSide];
-        for (int i = 0; i < row.Length; i++)
-        {
-            GameObject go = new GameObject(rowName + i);
-            go.transform.parent = transform;
-            SplashEffect splash = go.AddComponent<SplashEffect>();
-            splash.color = foamColor;
-            splash.startSpeed = 0.6f;
-            splash.startSize = 0.16f;
-            splash.lifetime = 0.5f;
-            splash.coneAngle = 30f;
-            splash.gravityModifier = 1.5f;
-            splash.sprayDirection = Vector3.up;
-            row[i] = splash;
-        }
-        return row;
-    }
-
-    void UpdateFoamRow(SplashEffect[] row, Vector3 stern, Vector3 dir)
-    {
-        for (int i = 0; i < row.Length; i++)
-        {
-            // Sample the midpoint of each point's slice of the line so the
-            // first point isn't sitting right on top of the boat's stern.
-            float t = (i + 0.5f) / row.Length;
-            row[i].transform.position = stern + dir * (t * wakeLength);
-            row[i].continuousRate = Mathf.Lerp(foamRateNear, foamRateFar, t);
-            row[i].SetContinuous(true);
-        }
-    }
-
-    LineRenderer CreateLine(string lineName)
-    {
-        GameObject go = new GameObject(lineName);
+        GameObject go = new GameObject(rendererName);
         go.transform.parent = transform;
+
         LineRenderer line = go.AddComponent<LineRenderer>();
-        line.positionCount = 2;
-        line.startWidth = 0.15f;
-        line.endWidth = 0.15f;
-        line.material = new Material(Shader.Find("Sprites/Default"));
-        line.startColor = new Color(1f, 1f, 1f, 0.85f);
-        line.endColor = new Color(1f, 1f, 1f, 0f);
+        line.positionCount = RibbonResolution;
+        line.material = foamMaterial;
+        line.widthMultiplier = widthMultiplier;
+        line.widthCurve = widthCurve;
+        line.textureMode = LineTextureMode.Tile;
+        line.numCapVertices = 2;
+        line.startColor = startColor;
+        line.endColor = endColor;
         line.useWorldSpace = true;
 
         // Default (View) alignment billboards the ribbon to face the camera,
@@ -117,17 +118,50 @@ public class WakeRenderer : MonoBehaviour
 
         Vector3 stern = boat.position + boat.forward * sternZOffset;
         stern.y = waterHeight;
+
         float rad = wakeAngleDeg * Mathf.Deg2Rad;
         Vector3 leftDir = (-boat.forward * Mathf.Cos(rad) - boat.right * Mathf.Sin(rad)).normalized;
         Vector3 rightDir = (-boat.forward * Mathf.Cos(rad) + boat.right * Mathf.Sin(rad)).normalized;
 
-        leftLine.SetPosition(0, stern);
-        leftLine.SetPosition(1, stern + leftDir * wakeLength);
+        SetRibbonPoints(leftTrail, stern, leftDir, wakeLength);
+        SetRibbonPoints(rightTrail, stern, rightDir, wakeLength);
+        SetRibbonPoints(centralWake, stern, -boat.forward, centralWakeLength);
 
-        rightLine.SetPosition(0, stern);
-        rightLine.SetPosition(1, stern + rightDir * wakeLength);
+        foamOffset.y -= foamScrollSpeed * Time.deltaTime;
+        foamMaterial.mainTextureOffset = foamOffset;
+    }
 
-        UpdateFoamRow(leftFoam, stern, leftDir);
-        UpdateFoamRow(rightFoam, stern, rightDir);
+    static void SetRibbonPoints(LineRenderer line, Vector3 origin, Vector3 direction, float length)
+    {
+        for (int i = 0; i < RibbonResolution; i++)
+        {
+            float t = i / (float)(RibbonResolution - 1);
+            line.SetPosition(i, origin + direction * (t * length));
+        }
+    }
+
+    // A patchy white-noise alpha mask (two blended Perlin octaves) rather
+    // than a flat color, so the foam reads as uneven clumps of whitewater
+    // instead of a smooth painted stripe.
+    Texture2D CreateFoamTexture()
+    {
+        int size = 64;
+        Texture2D tex = new Texture2D(size, size);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float coarse = Mathf.PerlinNoise(x * 0.12f, y * 0.12f);
+                float fine = Mathf.PerlinNoise(x * 0.4f + 50f, y * 0.4f + 50f);
+                float foam = Mathf.Clamp01(coarse * 0.65f + fine * 0.45f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, foam));
+            }
+        }
+
+        tex.wrapMode = TextureWrapMode.Repeat;
+        tex.filterMode = FilterMode.Bilinear;
+        tex.Apply();
+        return tex;
     }
 }
