@@ -160,25 +160,27 @@ public class RiderController : MonoBehaviour
     public float raleyFullExtendCarveSpeed = 1.0f;
     float launchCarveSpeed = 0f;
 
-    // A raley is heelside-only: the big, controlled cut where the rider
-    // drives back toward the boat and the wake ramps them up as their back
-    // faces it - not the smaller cut where they carve away from the boat
-    // and go up facing it (toeside). "Toward the boat" is what matters, not
-    // which wake line - crossing the SAME wake edge while still swinging
-    // outward (angularVelocity same sign as angle) is toeside; crossing it
-    // while swinging back in toward center (opposite signs) is heelside.
-    // Switch stance mirrors which direction that is, same as tilt/lean
-    // elsewhere already flip with stanceSign.
+    // A raley is heelside-only. Heelside/toeside is about which lateral
+    // direction the rider is actually carving (the sign of angularVelocity)
+    // relative to their stance, not which wake line or which side of the
+    // boat this particular crossing happens to be on - riding one edge
+    // covers an entire swing from one apex through center to the other,
+    // and only changes when the carve direction itself reverses, same as
+    // real wakeboarding. Combined with only inward crossings launching at
+    // all (see the crossing check below), a regular-stance rider's heelside
+    // raley can only ever come from carving left (crossing the right wake
+    // edge inward); switch mirrors it (carving right, crossing the left
+    // edge). See where this gets set for the exact rule.
     bool launchIsHeelside = false;
 
-    // Which of the two mirror-image heelside launches this is (cutting back
-    // in from the right vs. from the left) - the sign of angularVelocity at
-    // the crossing, i.e. which way they're actively steering as they cross.
-    // The raley pose needs this to yaw the board/legs the same rotational
-    // direction the rider was already leaning into (their existing edge
-    // lean/boardYaw), rather than always twisting the same fixed way - a
-    // fixed direction is only continuous with one of the two mirror cases
-    // and looks like a reversal/180 snap into the pose for the other.
+    // The sign of angularVelocity at the crossing - which lateral direction
+    // the rider is actually carving. Regular and switch riders earn a
+    // heelside raley from opposite carve directions (see launchIsHeelside
+    // above), so the raley pose needs this to know which way to yaw the
+    // board/legs: rotating the same direction the rider's existing edge
+    // lean was already turning them, rather than a fixed direction that's
+    // only correct for one of the two stances and looks like a reversal/180
+    // snap into the pose for the other.
     float launchYawSign = 1f;
 
     bool isRaleying = false;
@@ -293,7 +295,9 @@ public class RiderController : MonoBehaviour
             float wakeAngleRad = wakeAngleDeg * Mathf.Deg2Rad;
             bool wasOutsideWake = Mathf.Abs(prevAngle) > wakeAngleRad;
             bool isOutsideWake = Mathf.Abs(angle) > wakeAngleRad;
-            if (wasOutsideWake != isOutsideWake)
+            // Only the outside-to-in crossing launches - carving out past
+            // the wake on the way out just rides over it with no pop.
+            if (wasOutsideWake && !isOutsideWake)
             {
                 // Launch height scales with how fast the rider was turning at
                 // the moment they hit the wake - a slow drift over barely gets
@@ -305,12 +309,16 @@ public class RiderController : MonoBehaviour
                 // the wake - what the raley's commitment scales with.
                 launchCarveSpeed = Mathf.Abs(angularVelocity);
 
-                // Same sign as angle = still swinging outward, away from
-                // the boat (toeside). Opposite sign = swinging back in,
-                // toward the boat, back to the wake (heelside) - see the
-                // field comment above.
-                bool crossingInward = Mathf.Sign(angularVelocity) != Mathf.Sign(angle);
-                launchIsHeelside = crossingInward == (stanceSign > 0f);
+                // Heelside/toeside is about which lateral direction they're
+                // carving, not which side of the boat this crossing happens
+                // on: riding one edge covers a whole swing from one apex
+                // through center to the other, and only changes when the
+                // carve direction itself reverses - same as real
+                // wakeboarding. So it's just the sign of angularVelocity
+                // (which way they're actually steering) mirrored by stance,
+                // not the side of the crossing.
+                bool movingLeft = angularVelocity < 0f;
+                launchIsHeelside = movingLeft == (stanceSign > 0f);
                 launchYawSign = Mathf.Sign(angularVelocity);
 
                 // The ramp trades some of that carve speed for height rather
