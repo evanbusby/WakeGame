@@ -60,13 +60,21 @@ public class RiderController : MonoBehaviour
     // horizontal speed is lower than on-water carve speed while vertical
     // speed is higher. horizontalCoastScale is how much carve speed survives
     // as horizontal glide once airborne; jumpVelocityScale converts takeoff
-    // angular speed into vertical launch speed. Both are tuned together so
-    // that carving in at roughly the fastest speed the pendulum reaches
-    // (~1.2 rad/s) still covers about 1.5x the wake's width (wakeWidth =
-    // 2 * ropeLength * sin(wakeAngleDeg) =~ 8 units here, so ~12 units of
-    // distance) while getting noticeably more air under it.
-    public float horizontalCoastScale = 0.7f;
-    public float jumpVelocityScale = 5f;
+    // angular speed into vertical launch speed.
+    //
+    // Horizontal distance covered in the air works out to
+    // 2 * angularVelocity^2 * horizontalCoastScale * jumpVelocityScale / gravity
+    // (airtime * horizontal speed, with airtime = 2*Vy/gravity) - so it
+    // depends only on the PRODUCT of these two scales, not on how it's split
+    // between them. That product is kept the same as the original tuning
+    // (0.7 * 5 = 3.5) so the jump's horizontal reach is unchanged, while
+    // shifting the split further toward jumpVelocityScale trades some of
+    // that same carve speed for a higher, floatier launch (height scales
+    // with jumpVelocityScale^2, airtime scales with jumpVelocityScale) -
+    // more pop and hang time without touching gravity or the distance a
+    // given carve covers.
+    public float horizontalCoastScale = 0.5385f;
+    public float jumpVelocityScale = 6.5f;
     public float gravity = 9.81f;
 
     public SplashEffect boardSplash;
