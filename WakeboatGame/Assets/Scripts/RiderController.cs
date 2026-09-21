@@ -55,30 +55,49 @@ public class RiderController : MonoBehaviour
     public SplashEffect boardSplash;
     public int landingSplashCount = 24;
 
-    float angle = 0f;
-    float angularVelocity = 0f;
-    float prevAngle = 0f;
-    float verticalVelocity = 0f;
-    float airHeight = 0f;
+    // A manual hop, independent of the wake - just a fixed vertical launch
+    // speed while riding on flat water. It reuses the same airborne coasting
+    // and splash logic as a wake jump, so bunny-hopping still gets a landing
+    // splash and can be spun like any other jump.
+    public float bunnyHopVelocity = 3f;
+
+    // Spin (a surface or air 360/540/720, handle pass and all) is a body
+    // rotation around the vertical axis, layered on top of the boat-heading
+    // yaw the rider always tracks. In the air it's direct manual control:
+    // holding a spin key accumulates rotation at a constant rate for as long
+    // as it's held, so the player - not the game - decides whether they stop
+    // at a 360, a 540, or a 720. On the water there's no edge to keep
+    // spinning against, so a surface spin is a quick, quantized 180 - a
+    // discrete "turn around and ride switch" rather than a freely-stoppable
+    // rotation - and it isn't reset on landing/afterward: like in real
+    // wakeboarding, the rotation becomes the rider's new stance (regular
+    // after an even multiple of 180 degrees, switch after an odd one).
+    public float spinRateDegPerSec = 300f;
+    public float groundSpinDuration = 0.3f;
+    public RopeRenderer rope;
+    float spinDeg = 0f;
+    bool groundSpinning = false;
+    float groundSpinTimer = 0f;
+    float groundSpinStartDeg = 0f;
+    float groundSpinTargetDeg = 0f;
 
     // A flip's rotation speed is set once, at the moment it's triggered, to
     // exactly (360 degrees / time left in the air) - computed from the
     // current vertical velocity and height via basic projectile kinematics.
     // That guarantees the flip always completes exactly as the rider lands,
-    // regardless of how big or small the jump is: a short hop spins fast to
-    // finish in time, a big jump spins slowly since there's more airtime to
-    // fill.
-    //
-    // The rider stands sideways on the board (shoulder line along the
-    // direction of travel, local Z), so a real front/backflip - a tumble
-    // through the rider's own sagittal plane - rotates around that same Z
-    // axis, exactly like the carve lean (tilt) already does. Rotating around
-    // X instead (perpendicular to travel) would tumble the body through its
-    // frontal plane, which reads as a sideways cartwheel rather than a
-    // front/backflip - that was the bug.
+    // regardless of how big or small the jump is. The rider stands sideways
+    // on the board (shoulder line along the direction of travel, local Z),
+    // so a real front/backflip rotates around that same Z axis, exactly like
+    // the carve lean (tilt) already does.
     bool isFlipping = false;
     float flipSpinDeg = 0f;
     float flipSpeedDegPerSec = 0f;
+
+    float angle = 0f;
+    float angularVelocity = 0f;
+    float prevAngle = 0f;
+    float verticalVelocity = 0f;
+    float airHeight = 0f;
 
     void Update()
     {
@@ -87,8 +106,59 @@ public class RiderController : MonoBehaviour
         bool isAirborne = airHeight > 0f;
 
         float inputSign = 0f;
-        if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A)) inputSign -= 1f;
-        if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D)) inputSign += 1f;
+        if (Input.GetKey(KeyCode.A)) inputSign -= 1f;
+        if (Input.GetKey(KeyCode.D)) inputSign += 1f;
+
+        float spinDegBefore = spinDeg;
+
+        if (isAirborne)
+        {
+            // Free analog air spin: holding a direction accumulates rotation
+            // for as long as it's held, so the player controls the exact
+            // amount by feel.
+            groundSpinning = false;
+
+            float spinInput = 0f;
+            if (Input.GetKey(KeyCode.LeftArrow)) spinInput -= 1f;
+            if (Input.GetKey(KeyCode.RightArrow)) spinInput += 1f;
+            spinDeg += spinInput * spinRateDegPerSec * Time.deltaTime;
+        }
+        else if (groundSpinning)
+        {
+            // Already committed to a surface 180 - run it to completion
+            // regardless of what's held now, so it can't be stopped partway
+            // (no 90s on the water).
+            groundSpinTimer += Time.deltaTime;
+            float t = Mathf.Clamp01(groundSpinTimer / groundSpinDuration);
+            spinDeg = Mathf.Lerp(groundSpinStartDeg, groundSpinTargetDeg, t);
+            if (t >= 1f) groundSpinning = false;
+        }
+        else if (inputSign == 0f)
+        {
+            // Only start a surface spin when not actively steering - you
+            // can't carve and spin on the water at the same time.
+            float groundSpinDir = 0f;
+            if (Input.GetKeyDown(KeyCode.LeftArrow)) groundSpinDir = -1f;
+            else if (Input.GetKeyDown(KeyCode.RightArrow)) groundSpinDir = 1f;
+
+            if (groundSpinDir != 0f)
+            {
+                groundSpinning = true;
+                groundSpinTimer = 0f;
+                groundSpinStartDeg = spinDeg;
+                groundSpinTargetDeg = spinDeg + groundSpinDir * 180f;
+            }
+        }
+
+        if (rope != null)
+        {
+            int crossingsBefore = Mathf.FloorToInt(Mathf.Abs(spinDegBefore) / 360f);
+            int crossingsNow = Mathf.FloorToInt(Mathf.Abs(spinDeg) / 360f);
+            if (crossingsNow != crossingsBefore)
+            {
+                rope.TriggerPass();
+            }
+        }
 
         if (!isAirborne)
         {
@@ -115,6 +185,11 @@ public class RiderController : MonoBehaviour
 
         if (!isAirborne)
         {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                verticalVelocity = bunnyHopVelocity;
+            }
+
             float wakeAngleRad = wakeAngleDeg * Mathf.Deg2Rad;
             bool wasOutsideWake = Mathf.Abs(prevAngle) > wakeAngleRad;
             bool isOutsideWake = Mathf.Abs(angle) > wakeAngleRad;
@@ -159,22 +234,14 @@ public class RiderController : MonoBehaviour
         }
         else if (!isFlipping)
         {
-            // GetKey (not GetKeyDown) so holding the key before takeoff arms
-            // the flip - it fires the instant the rider leaves the water,
-            // instead of requiring a fresh press after they're already airborne.
-            bool frontInput = Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W);
-            bool backInput = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S);
+            bool frontInput = Input.GetKey(KeyCode.UpArrow);
+            bool backInput = Input.GetKey(KeyCode.DownArrow);
             if (frontInput || backInput)
             {
                 float discriminant = Mathf.Max(verticalVelocity * verticalVelocity + 2f * gravity * airHeight, 0f);
                 float remainingAirTime = (verticalVelocity + Mathf.Sqrt(discriminant)) / gravity;
                 remainingAirTime = Mathf.Max(remainingAirTime, 0.001f);
 
-                // Negative Z rotation leans/spins the rider toward +boat.right
-                // (screen-right from the chase camera) - matching how a
-                // positive carve angle already produces a negative tilt in
-                // that same direction below. Frontflip spins that way (right),
-                // backflip the other way (left).
                 float direction = frontInput ? -1f : 1f;
                 flipSpeedDegPerSec = direction * 360f / remainingAirTime;
                 isFlipping = true;
@@ -195,6 +262,6 @@ public class RiderController : MonoBehaviour
         transform.position = targetPos;
 
         float tilt = Mathf.Clamp(-angle * Mathf.Rad2Deg, -40f, 40f);
-        transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y, tilt + flipSpinDeg);
+        transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y + spinDeg, tilt + flipSpinDeg);
     }
 }
