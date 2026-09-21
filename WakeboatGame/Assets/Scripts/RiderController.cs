@@ -140,11 +140,66 @@ public class RiderController : MonoBehaviour
     float flipSpinDeg = 0f;
     float flipSpeedDegPerSec = 0f;
 
+    // A raley (holding UpArrow+DownArrow together) is a held pose, not a
+    // spin: the rider lays out into a superman shape, holds it, then draws
+    // their legs back under themselves to land. Its three phases (extend
+    // into the pose / hold it / recover to a landing stance) are sized as
+    // fractions of however much airtime is actually left at the moment
+    // it's triggered - same "always finishes exactly as the rider lands"
+    // trick the flip timing uses just above - so it never gets caught
+    // stretched out mid-pose by the water. Mutually exclusive with
+    // isFlipping; the rider commits to one trick or the other per jump.
+    // How committed the raley is scales with how hard the rider was
+    // carving at the moment they left the wake (launchCarveSpeed, captured
+    // pre-horizontalCoastScale so it's the same "~1.2 rad/s fastest the
+    // pendulum reaches" reference the jump-height tuning above uses) - a
+    // marginal cut only pops partway into the pose, a full commitment gets
+    // the full superman extension. Below raleyMinCarveSpeed the trick isn't
+    // available at all: not enough of a cut to be worth attempting.
+    public float raleyMinCarveSpeed = 0.35f;
+    public float raleyFullExtendCarveSpeed = 1.0f;
+    float launchCarveSpeed = 0f;
+
+    // A raley is heelside-only: the big, controlled cut where the rider
+    // drives back toward the boat and the wake ramps them up as their back
+    // faces it - not the smaller cut where they carve away from the boat
+    // and go up facing it (toeside). "Toward the boat" is what matters, not
+    // which wake line - crossing the SAME wake edge while still swinging
+    // outward (angularVelocity same sign as angle) is toeside; crossing it
+    // while swinging back in toward center (opposite signs) is heelside.
+    // Switch stance mirrors which direction that is, same as tilt/lean
+    // elsewhere already flip with stanceSign.
+    bool launchIsHeelside = false;
+
+    // Which of the two mirror-image heelside launches this is (cutting back
+    // in from the right vs. from the left) - the sign of angularVelocity at
+    // the crossing, i.e. which way they're actively steering as they cross.
+    // The raley pose needs this to yaw the board/legs the same rotational
+    // direction the rider was already leaning into (their existing edge
+    // lean/boardYaw), rather than always twisting the same fixed way - a
+    // fixed direction is only continuous with one of the two mirror cases
+    // and looks like a reversal/180 snap into the pose for the other.
+    float launchYawSign = 1f;
+
+    bool isRaleying = false;
+    float raleyTimer = 0f;
+    float raleyExtendDuration = 0f;
+    float raleyHoldDuration = 0f;
+    float raleyRecoverDuration = 0f;
+    float raleyPeakBlend = 0f;
+
     float angle = 0f;
     float angularVelocity = 0f;
     float prevAngle = 0f;
     float verticalVelocity = 0f;
     float airHeight = 0f;
+
+    RiderRig rig;
+
+    void Awake()
+    {
+        rig = GetComponent<RiderRig>();
+    }
 
     void Update()
     {
@@ -245,6 +300,19 @@ public class RiderController : MonoBehaviour
                 // any air, a hard cut into it launches them.
                 verticalVelocity = Mathf.Abs(angularVelocity) * jumpVelocityScale;
 
+                // Captured before horizontalCoastScale is applied below, so
+                // it reads as the actual carve speed at the moment they left
+                // the wake - what the raley's commitment scales with.
+                launchCarveSpeed = Mathf.Abs(angularVelocity);
+
+                // Same sign as angle = still swinging outward, away from
+                // the boat (toeside). Opposite sign = swinging back in,
+                // toward the boat, back to the wake (heelside) - see the
+                // field comment above.
+                bool crossingInward = Mathf.Sign(angularVelocity) != Mathf.Sign(angle);
+                launchIsHeelside = crossingInward == (stanceSign > 0f);
+                launchYawSign = Mathf.Sign(angularVelocity);
+
                 // The ramp trades some of that carve speed for height rather
                 // than adding height for free, so the horizontal coast slows
                 // down for the remainder of the flight.
@@ -276,16 +344,40 @@ public class RiderController : MonoBehaviour
         {
             isFlipping = false;
             flipSpinDeg = 0f;
+            isRaleying = false;
+            raleyTimer = 0f;
+            // Only a fresh wake crossing sets these again, so a plain bunny
+            // hop (no carve into a wake at all) can't inherit leftover
+            // values from an earlier jump and unlock a raley it didn't earn.
+            launchCarveSpeed = 0f;
+            launchIsHeelside = false;
         }
-        else if (!isFlipping)
+        else if (!isFlipping && !isRaleying)
         {
             bool frontInput = Input.GetKey(KeyCode.UpArrow);
             bool backInput = Input.GetKey(KeyCode.DownArrow);
-            if (frontInput || backInput)
+            // Both held together is always a raley attempt (or nothing, if
+            // it wasn't a heelside launch or the carve wasn't fast enough
+            // to earn one) - it must never fall through to the single-key
+            // flip branch below, since both frontInput and backInput are
+            // true here too.
+            if (frontInput && backInput)
             {
-                float discriminant = Mathf.Max(verticalVelocity * verticalVelocity + 2f * gravity * airHeight, 0f);
-                float remainingAirTime = (verticalVelocity + Mathf.Sqrt(discriminant)) / gravity;
-                remainingAirTime = Mathf.Max(remainingAirTime, 0.001f);
+                if (launchIsHeelside && launchCarveSpeed >= raleyMinCarveSpeed)
+                {
+                    float remainingAirTime = RemainingAirTime();
+                    raleyExtendDuration = remainingAirTime * 0.2f;
+                    raleyHoldDuration = remainingAirTime * 0.55f;
+                    raleyRecoverDuration = remainingAirTime * 0.25f;
+                    raleyPeakBlend = Mathf.Clamp01(Mathf.InverseLerp(raleyMinCarveSpeed, raleyFullExtendCarveSpeed, launchCarveSpeed));
+                    raleyTimer = 0f;
+                    isRaleying = true;
+                    if (rig != null) rig.SetRaleyDirection(launchYawSign);
+                }
+            }
+            else if (frontInput || backInput)
+            {
+                float remainingAirTime = RemainingAirTime();
 
                 // stanceSign is already frozen at its takeoff value (see
                 // field comment), which is what keeps this constant for the
@@ -301,6 +393,14 @@ public class RiderController : MonoBehaviour
         {
             flipSpinDeg += flipSpeedDegPerSec * Time.deltaTime;
         }
+
+        float raleyBlend = 0f;
+        if (isRaleying)
+        {
+            raleyTimer += Time.deltaTime;
+            raleyBlend = RaleyBlend();
+        }
+        if (rig != null) rig.SetRaleyBlend(raleyBlend);
 
         float lateralOffset = Mathf.Sin(angle) * ropeLength;
         float forwardDistance = Mathf.Cos(angle) * ropeLength;
@@ -330,5 +430,42 @@ public class RiderController : MonoBehaviour
         float tilt = -edgeLean * maxLeanDeg * stanceSign;
         float boardYaw = edgeLean * maxBoardYawDeg;
         transform.rotation = Quaternion.Euler(0f, boat.eulerAngles.y + spinDeg + boardYaw, tilt + flipSpinDeg);
+    }
+
+    // Basic projectile kinematics: how much longer the current jump has
+    // left in the air, from the current height/vertical velocity. Shared
+    // by the flip and the raley so both trick timings fit whatever airtime
+    // is actually left, however big or small the jump.
+    float RemainingAirTime()
+    {
+        float discriminant = Mathf.Max(verticalVelocity * verticalVelocity + 2f * gravity * airHeight, 0f);
+        float remainingAirTime = (verticalVelocity + Mathf.Sqrt(discriminant)) / gravity;
+        return Mathf.Max(remainingAirTime, 0.001f);
+    }
+
+    // 0 = standing stance, raleyPeakBlend = as laid-out as this jump earned
+    // (1 = fully extended superman, less for a marginal cut). Ramps up over
+    // the extend phase, holds flat at that peak, then ramps back down over
+    // the recover phase so the rider's feet are back under them by the time
+    // raleyTimer runs out - which, since the three durations were sized as
+    // fractions of the remaining airtime back when the raley started, lines
+    // up with landing.
+    float RaleyBlend()
+    {
+        if (raleyTimer < raleyExtendDuration)
+        {
+            float t = raleyExtendDuration > 0f ? raleyTimer / raleyExtendDuration : 1f;
+            return t * raleyPeakBlend;
+        }
+
+        float afterExtend = raleyTimer - raleyExtendDuration;
+        if (afterExtend < raleyHoldDuration)
+        {
+            return raleyPeakBlend;
+        }
+
+        float recoverElapsed = afterExtend - raleyHoldDuration;
+        float recoverT = raleyRecoverDuration > 0f ? Mathf.Clamp01(1f - recoverElapsed / raleyRecoverDuration) : 0f;
+        return recoverT * raleyPeakBlend;
     }
 }
