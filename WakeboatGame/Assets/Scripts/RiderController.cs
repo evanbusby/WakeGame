@@ -36,7 +36,7 @@ public class RiderController : MonoBehaviour
     // at that angle, crossing the wake is simply |angle| crossing
     // wakeAngleDeg - no separate distance math needed.
     public float wakeAngleDeg = 19.47f;
-    public float baseHeight = 0.5f;
+    public float baseHeight = 0.05f;
 
     // The wake acts like a ramp: it redirects some of the rider's carving
     // momentum upward instead of just adding height on top of it, so takeoff

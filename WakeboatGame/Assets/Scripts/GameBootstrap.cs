@@ -17,11 +17,9 @@ public class GameBootstrap : MonoBehaviour
         SetColor(boat, new Color(0.6f, 0.2f, 0.1f));
         boat.AddComponent<BoatMover>();
 
-        GameObject rider = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        rider.name = "Rider";
-        rider.transform.position = new Vector3(0f, 0.5f, -12f);
-        rider.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
-        SetColor(rider, new Color(1f, 0.6f, 0.1f));
+        GameObject rider = new GameObject("Rider");
+        rider.transform.position = new Vector3(0f, 0.05f, -12f);
+        RiderRig riderRig = rider.AddComponent<RiderRig>();
         RiderController riderController = rider.AddComponent<RiderController>();
         riderController.boat = boat.transform;
 
@@ -34,6 +32,7 @@ public class GameBootstrap : MonoBehaviour
         RopeRenderer ropeRenderer = rope.AddComponent<RopeRenderer>();
         ropeRenderer.boatEnd = boat.transform;
         ropeRenderer.riderEnd = rider.transform;
+        ropeRenderer.riderOffset = riderRig.handOffset;
 
         GameObject camObj = new GameObject("Main Camera");
         camObj.tag = "MainCamera";
