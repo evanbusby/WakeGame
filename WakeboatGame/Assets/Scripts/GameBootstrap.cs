@@ -8,7 +8,7 @@ public class GameBootstrap : MonoBehaviour
         water.name = "Water";
         water.transform.localScale = new Vector3(50f, 1f, 500f);
         water.transform.position = new Vector3(0f, 0f, 200f);
-        SetColor(water, new Color(0.1f, 0.4f, 0.7f));
+        water.AddComponent<WaterScroll>();
 
         GameObject boat = GameObject.CreatePrimitive(PrimitiveType.Cube);
         boat.name = "Boat";
@@ -19,11 +19,17 @@ public class GameBootstrap : MonoBehaviour
 
         GameObject rider = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         rider.name = "Rider";
-        rider.transform.position = new Vector3(0f, 0.5f, -6f);
+        rider.transform.position = new Vector3(0f, 0.5f, -12f);
         rider.transform.localScale = new Vector3(0.6f, 0.6f, 0.6f);
         SetColor(rider, new Color(1f, 0.6f, 0.1f));
         RiderController riderController = rider.AddComponent<RiderController>();
         riderController.boat = boat.transform;
+
+        GameObject rope = new GameObject("Rope");
+        rope.AddComponent<LineRenderer>();
+        RopeRenderer ropeRenderer = rope.AddComponent<RopeRenderer>();
+        ropeRenderer.boatEnd = boat.transform;
+        ropeRenderer.riderEnd = rider.transform;
 
         GameObject camObj = new GameObject("Main Camera");
         camObj.tag = "MainCamera";
@@ -31,7 +37,8 @@ public class GameBootstrap : MonoBehaviour
         camObj.AddComponent<AudioListener>();
         CameraFollow follow = camObj.AddComponent<CameraFollow>();
         follow.target = boat.transform;
-        camObj.transform.position = boat.transform.position + new Vector3(0f, 4f, -8f);
+        follow.offset = new Vector3(0f, 6f, -20f);
+        camObj.transform.position = boat.transform.position + follow.offset;
 
         GameObject lightObj = new GameObject("Directional Light");
         Light light = lightObj.AddComponent<Light>();
