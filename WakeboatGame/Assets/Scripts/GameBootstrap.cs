@@ -10,6 +10,14 @@ public class GameBootstrap : MonoBehaviour
         water.transform.position = new Vector3(0f, 0f, 200f);
         water.AddComponent<WaterScroll>();
 
+        // Unity's built-in Plane primitive is a 10x10 unit quad, so half its
+        // world size is 5 units per unit of localScale.
+        float waterHalfWidth = water.transform.localScale.x * 5f;
+        float landHalfWidth = 300f;
+        float landCenterOffset = waterHalfWidth + landHalfWidth;
+        CreateLand("LandLeft", -landCenterOffset, landHalfWidth, water.transform.position.z, water.transform.localScale.z);
+        CreateLand("LandRight", landCenterOffset, landHalfWidth, water.transform.position.z, water.transform.localScale.z);
+
         GameObject boat = GameObject.CreatePrimitive(PrimitiveType.Cube);
         boat.name = "Boat";
         boat.transform.position = new Vector3(0f, 0.5f, 0f);
@@ -74,6 +82,35 @@ public class GameBootstrap : MonoBehaviour
         Light light = lightObj.AddComponent<Light>();
         light.type = LightType.Directional;
         lightObj.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+    }
+
+    void CreateLand(string name, float centerX, float halfWidth, float centerZ, float zScale)
+    {
+        GameObject land = GameObject.CreatePrimitive(PrimitiveType.Plane);
+        land.name = name;
+        land.transform.localScale = new Vector3(halfWidth / 5f, 1f, zScale);
+        // Sits a bit above the water plane's y=0, both so it reads as a
+        // raised shore rather than more water, and so the two planes aren't
+        // perfectly coplanar at the shared edge (which would z-fight/flicker
+        // exactly like the wake-vs-water flicker fixed earlier).
+        land.transform.position = new Vector3(centerX, 0.1f, centerZ);
+        land.AddComponent<LandScroll>();
+
+        // LandFeatures lives on its own identity-scale object rather than
+        // under the land plane, since that plane's transform carries a
+        // large non-uniform scale that would otherwise warp world-space
+        // sized hills/trees (see LandFeatures' own comment).
+        int side = centerX >= 0f ? 1 : -1;
+        float innerEdgeX = Mathf.Abs(centerX) - halfWidth;
+
+        GameObject featuresRoot = new GameObject(name + "Features");
+        featuresRoot.transform.position = new Vector3(0f, 0f, centerZ);
+        LandFeatures features = featuresRoot.AddComponent<LandFeatures>();
+        features.innerEdgeX = innerEdgeX;
+        features.stripWidth = halfWidth * 2f;
+        features.stripHalfLength = zScale * 5f;
+        features.side = side;
+        features.Generate();
     }
 
     void SetColor(GameObject go, Color color)
