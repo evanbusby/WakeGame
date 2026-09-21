@@ -17,11 +17,38 @@ public class GameBootstrap : MonoBehaviour
         SetColor(boat, new Color(0.6f, 0.2f, 0.1f));
         boat.AddComponent<BoatMover>();
 
+        GameObject roosterTail = new GameObject("RoosterTail");
+        roosterTail.transform.SetParent(boat.transform, false);
+        roosterTail.transform.localPosition = new Vector3(0f, -0.3f, -1.7f);
+        SplashEffect roosterTailEffect = roosterTail.AddComponent<SplashEffect>();
+        roosterTailEffect.color = new Color(0.85f, 0.92f, 1f, 0.85f);
+        roosterTailEffect.startSpeed = 6f;
+        roosterTailEffect.startSize = 0.2f;
+        roosterTailEffect.lifetime = 0.8f;
+        roosterTailEffect.continuousRate = 40f;
+        roosterTailEffect.coneAngle = 12f;
+        roosterTailEffect.gravityModifier = 1.2f;
+        roosterTailEffect.sprayDirection = new Vector3(0f, 0.6f, -1f);
+        roosterTailEffect.SetContinuous(true);
+
         GameObject rider = new GameObject("Rider");
         rider.transform.position = new Vector3(0f, 0.05f, -12f);
         RiderRig riderRig = rider.AddComponent<RiderRig>();
         RiderController riderController = rider.AddComponent<RiderController>();
         riderController.boat = boat.transform;
+
+        GameObject boardSplash = new GameObject("BoardSplash");
+        boardSplash.transform.SetParent(rider.transform, false);
+        boardSplash.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+        SplashEffect boardSplashEffect = boardSplash.AddComponent<SplashEffect>();
+        boardSplashEffect.color = new Color(0.85f, 0.92f, 1f, 0.8f);
+        boardSplashEffect.startSpeed = 2.5f;
+        boardSplashEffect.startSize = 0.08f;
+        boardSplashEffect.lifetime = 0.4f;
+        boardSplashEffect.continuousRate = 15f;
+        boardSplashEffect.coneAngle = 25f;
+        boardSplashEffect.sprayDirection = Vector3.up;
+        riderController.boardSplash = boardSplashEffect;
 
         GameObject wake = new GameObject("Wake");
         WakeRenderer wakeRenderer = wake.AddComponent<WakeRenderer>();

@@ -52,6 +52,9 @@ public class RiderController : MonoBehaviour
     public float jumpVelocityScale = 5f;
     public float gravity = 9.81f;
 
+    public SplashEffect boardSplash;
+    public int landingSplashCount = 24;
+
     float angle = 0f;
     float angularVelocity = 0f;
     float prevAngle = 0f;
@@ -117,6 +120,16 @@ public class RiderController : MonoBehaviour
         {
             airHeight = 0f;
             verticalVelocity = 0f;
+        }
+
+        if (boardSplash != null)
+        {
+            bool nowGrounded = airHeight <= 0f;
+            boardSplash.SetContinuous(nowGrounded);
+            if (isAirborne && nowGrounded)
+            {
+                boardSplash.Burst(landingSplashCount);
+            }
         }
 
         float lateralOffset = Mathf.Sin(angle) * ropeLength;
