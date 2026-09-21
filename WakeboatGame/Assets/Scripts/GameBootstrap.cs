@@ -25,6 +25,10 @@ public class GameBootstrap : MonoBehaviour
         RiderController riderController = rider.AddComponent<RiderController>();
         riderController.boat = boat.transform;
 
+        GameObject wake = new GameObject("Wake");
+        WakeRenderer wakeRenderer = wake.AddComponent<WakeRenderer>();
+        wakeRenderer.boat = boat.transform;
+
         GameObject rope = new GameObject("Rope");
         rope.AddComponent<LineRenderer>();
         RopeRenderer ropeRenderer = rope.AddComponent<RopeRenderer>();
