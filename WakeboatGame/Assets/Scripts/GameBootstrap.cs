@@ -60,7 +60,6 @@ public class GameBootstrap : MonoBehaviour
         ropeRenderer.boatEnd = boat.transform;
         ropeRenderer.riderEnd = rider.transform;
         ropeRenderer.riderOffset = riderRig.handOffset;
-        riderController.rope = ropeRenderer;
 
         GameObject camObj = new GameObject("Main Camera");
         camObj.tag = "MainCamera";
