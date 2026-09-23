@@ -9,12 +9,9 @@ public class WaterScroll : MonoBehaviour
 
     void Awake()
     {
-        // Custom/Water (Water.shader) does the actual "lake" look - moving
-        // wave-perturbed lighting/highlights and a fresnel sky tint - all
-        // per-pixel, so it stays cheap regardless of this plane's low
-        // vertex count. This texture is just an extra grayscale variation
-        // mask layered on top of the shader's own color; the shader
-        // supplies the hue, this only modulates brightness.
+        // The Water shader (Water.shader) does the actual moving, lit "lake"
+        // look. This texture just adds a bit of grayscale brightness
+        // variation on top - the shader supplies the color.
         water = new Material(Shader.Find("Custom/Water"));
         water.mainTexture = CreateRippleTexture();
         water.mainTextureScale = new Vector2(10f, 200f);
@@ -36,10 +33,8 @@ public class WaterScroll : MonoBehaviour
         {
             for (int x = 0; x < size; x++)
             {
-                // A neutral grayscale mask (not a color) - the shader's
-                // _Color supplies the actual lake hue, this only modulates
-                // brightness, so it stays close to a mid gray rather than
-                // baking in a tint of its own.
+                // Grayscale, not colored - the shader's own color supplies
+                // the hue, this only varies brightness.
                 float wave = Mathf.Sin(y * 0.6f) * 0.5f + Mathf.Sin(x * 0.15f + y * 0.1f) * 0.5f;
                 float shade = Mathf.Clamp01(0.5f + wave * 0.5f);
                 tex.SetPixel(x, y, new Color(shade, shade, shade, 1f));

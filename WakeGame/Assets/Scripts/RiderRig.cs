@@ -11,10 +11,9 @@ public class RiderRig : MonoBehaviour
     static readonly Color VestColor = new Color(1f, 0.6f, 0.1f);
     static readonly Color BoardColor = new Color(0.8f, 0.15f, 0.15f);
 
-    // Bundles a part with its standing-stance local transform (captured at
-    // creation) and its raley ("superman") target, so RiderController can
-    // just hand SetRaleyBlend a single 0-1 number and have every part
-    // interpolate together.
+    // Pairs a body part with its normal standing pose and its raley
+    // ("superman") target pose, so the whole rig can be blended between the
+    // two with one number.
     class PosedPart
     {
         public readonly Transform transform;
@@ -23,15 +22,10 @@ public class RiderRig : MonoBehaviour
         public Vector3 raleyPos;
         public Quaternion raleyRot;
 
-        // The live "resting" pose SetRaleyBlend blends FROM (toward
-        // raleyPos/raleyRot) instead of blending from neutralPos/neutralRot
-        // directly. SetDynamicPose updates these every frame for the parts
-        // it drives (legs/torso/head/arms - not the board), so a raley
-        // eases out of whatever natural carving/airborne stance the rider
-        // was already holding rather than snapping from a rigid default.
-        // Defaults to neutral so parts SetDynamicPose doesn't touch (the
-        // board) are simply always at their neutral pose until a raley
-        // moves them.
+        // The pose SetDynamicPose currently wants this part in.
+        // SetRaleyBlend eases from here toward the raley pose, rather than
+        // from a fixed neutral, so a raley flows out of whatever pose the
+        // rider was already in.
         public Vector3 basePos;
         public Quaternion baseRot;
 
@@ -49,8 +43,8 @@ public class RiderRig : MonoBehaviour
 
     PosedPart[] posedParts;
 
-    // Referenced individually (in addition to sitting in posedParts) so
-    // SetRaleyDirection/SetDynamicPose can re-aim specific parts - see there.
+    // Kept as individual fields (not just entries in posedParts) so
+    // SetRaleyDirection/SetDynamicPose can re-aim specific parts.
     PosedPart boardPosed;
     PosedPart legLPosed;
     PosedPart legRPosed;
@@ -66,11 +60,9 @@ public class RiderRig : MonoBehaviour
 
     void Build()
     {
-        // Local +Z is the direction of travel (RiderController aligns this rig's
-        // rotation with the boat's heading). A real wakeboarder rides sideways -
-        // feet spread front-to-back along the board's length, not side-by-side
-        // across it - so the stance is built along Z instead of X, with the
-        // torso's shoulder line (its wide axis) rotated to match: Z instead of X.
+        // Real wakeboarders ride sideways - feet spread front-to-back along
+        // the board, not side-by-side across it - so the stance here is
+        // built along the travel axis (Z) instead of across it.
         GameObject board = CreatePart(PrimitiveType.Cube, "Board",
             new Vector3(0f, 0.04f, 0f), Quaternion.identity,
             new Vector3(0.5f, 0.08f, 1.8f), BoardColor);
@@ -89,37 +81,18 @@ public class RiderRig : MonoBehaviour
             new Vector3(0f, 1.18f, 0f), Quaternion.identity,
             new Vector3(0.28f, 0.28f, 0.28f), SkinColor);
 
-        // Raley target pose: torso/head/arms pitch forward and stretch out
-        // ahead of the rider, hips/legs/board trail up and back behind -
-        // the "flying superman" layout, laid out roughly along the travel
-        // axis from reaching arms to trailing board.
+        // The raley ("superman") pose: torso/head/arms reach forward, hips/
+        // legs/board trail up and back. The board and legs get an extra
+        // 90-degree turn so the board stays crosswise (the normal riding
+        // stance) instead of pointing forward like a skateboard - only the
+        // body's pitch changes, not the board's sideways orientation. The
+        // board sits further back than the legs so their shapes don't
+        // visually overlap.
         //
-        // The board and legs are NOT rotated into the direction of travel.
-        // The neutral stance already has the board's long axis along local
-        // Z (the travel axis - see the comment above), which is correct for
-        // normal riding but would make the raley read as a forward-facing
-        // skate stance (front foot leading, board pointed at the boat) if
-        // carried over unchanged. A raley keeps the normal sideways
-        // stance - board long axis perpendicular to travel - the whole body
-        // just lays out horizontal on top of it. So the board gets an extra
-        // 90-degree YAW (around Y) to swing its long axis from Z onto X,
-        // and the legs move apart along X instead of Z, putting both feet
-        // side-by-side across the direction of travel instead of one ahead
-        // of the other. Pitching that yawed assembly with an X-axis
-        // rotation (as legs already were) doesn't disturb the X-aligned
-        // board any further, since X-axis rotations leave X itself fixed -
-        // so the board stays cross-wise no matter how far up and back the
-        // whole assembly swings.
-        //
-        // The board sits noticeably further back (-1.6) than the legs
-        // (-0.85) so their volumes don't overlap - they were close enough
-        // before that the board (once yawed, a good deal wider than it is
-        // thick) visually swallowed the leg capsules where they intersected.
-        //
-        // Board/legL/legR are kept as their own fields, not just entries in
-        // posedParts, because their exact raley targets depend on which of
-        // the two mirror-image heelside launches this is - SetRaleyDirection
-        // (called once per launch, from RiderController) re-aims them.
+        // Board/legL/legR are kept as separate fields (not just entries in
+        // posedParts) because their raley targets mirror depending on which
+        // of the two heelside launch directions this is - see
+        // SetRaleyDirection.
         boardPosed = new PosedPart(board.transform, new Vector3(0f, 0.45f, -1.6f), new Vector3(0f, 90f, 0f));
         legLPosed = new PosedPart(legL.transform, new Vector3(0.5f, 0.55f, -0.85f), new Vector3(-40f, 0f, 0f));
         legRPosed = new PosedPart(legR.transform, new Vector3(-0.5f, 0.55f, -0.85f), new Vector3(-40f, 0f, 0f));
@@ -135,18 +108,15 @@ public class RiderRig : MonoBehaviour
         };
     }
 
-    // Everyday reaction to carving/airborne/landing state, layered under
-    // the raley (see PosedPart.basePos/baseRot above) rather than fighting
-    // it. Deliberately simple - a bent-knee crouch, a forward torso lean,
-    // a counter-roll to fake hip/shoulder separation, and reaching arms -
-    // rather than a full secondary animation system.
-    //   crouch: 0 standing, 1 deepest bend (legs/torso/head drop and the
-    //     legs bend forward slightly).
-    //   torsoPitchDeg: forward lean of the torso/head/arms into the carve.
-    //   counterRollDeg: torso/head/arms roll opposite the whole-body tilt
-    //     already applied at the rig root, so the upper body reads as
-    //     comparatively more upright than the hard-leaning legs/board.
-    //   armExtend: 0 relaxed, 1 reaching/straightened.
+    // A simple, always-on reaction to turning/airborne/landing state - bent
+    // knees, a forward torso lean, a counter-roll for the upper body, and
+    // reaching arms - layered underneath the raley pose rather than fighting
+    // it.
+    //   crouch: 0 standing, 1 deepest bend.
+    //   torsoPitchDeg: forward lean into the turn.
+    //   counterRollDeg: upper body rolls opposite the whole-body lean, so it
+    //     reads as more upright than the hard-leaning legs/board.
+    //   armExtend: 0 relaxed, 1 reaching.
     public void SetDynamicPose(float crouch, float torsoPitchDeg, float counterRollDeg, float armExtend)
     {
         crouch = Mathf.Clamp01(crouch);
@@ -173,15 +143,10 @@ public class RiderRig : MonoBehaviour
         armRPosed.baseRot = Quaternion.Euler(armPitch, 0f, -armSpread + counterRollDeg);
     }
 
-    // Re-aims the board/legs raley targets for whichever of the two
-    // mirror-image heelside launches this one is (yawSign is the sign of
-    // angularVelocity at the crossing - see RiderController.launchYawSign).
-    // Flipping both the board's yaw and the legs' left/right target
-    // together keeps "front foot left, back foot right" consistent for
-    // both directions, and keeps the board rotating the same way the
-    // rider's existing edge lean was already turning it, instead of a
-    // fixed direction that's only continuous for one of the two and looks
-    // like a 180 snap for the other.
+    // Mirrors the board/leg raley targets for whichever of the two heelside
+    // launch directions this is, so the pose always rotates the same way the
+    // rider's existing lean was already turning, instead of snapping
+    // backward for one of the two directions.
     public void SetRaleyDirection(float yawSign)
     {
         boardPosed.raleyRot = Quaternion.Euler(0f, 90f * yawSign, 0f);
@@ -189,9 +154,8 @@ public class RiderRig : MonoBehaviour
         legRPosed.raleyPos = new Vector3(-0.5f * yawSign, legRPosed.raleyPos.y, legRPosed.raleyPos.z);
     }
 
-    // t=0 is the current dynamic pose (see SetDynamicPose - call that
-    // first each frame so basePos/baseRot are up to date), t=1 is fully
-    // laid out in the raley.
+    // t=0 is the current pose from SetDynamicPose (call that first each
+    // frame), t=1 is fully laid out in the raley.
     public void SetRaleyBlend(float t)
     {
         t = Mathf.Clamp01(t);

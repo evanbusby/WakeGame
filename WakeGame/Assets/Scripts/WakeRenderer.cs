@@ -1,11 +1,9 @@
 using UnityEngine;
 
-// A lightweight, code-only stand-in for the boat's wake: no fluid sim, no
-// per-frame mesh deformation - just a handful of LineRenderer ribbons
-// sharing one procedurally-generated foam texture, matching the rest of
-// this project's "no imported textures/assets" style (see WaterScroll).
-// Purely cosmetic - RiderController has its own independent wakeAngleDeg
-// for where the rider actually launches, so nothing here touches physics.
+// A code-only stand-in for the boat's wake - just a few line-renderer
+// ribbons with a procedural foam texture, no fluid simulation. Purely
+// visual: RiderController has its own wakeAngleDeg for where the rider
+// actually launches, so nothing here touches physics.
 public class WakeRenderer : MonoBehaviour
 {
     public Transform boat;
@@ -16,30 +14,20 @@ public class WakeRenderer : MonoBehaviour
     public float wakeLength = 60f;
     public float sternZOffset = -1.5f;
 
-    // The boat's immediate prop-wash trough: a wide, short patch of foam
-    // running straight back from the stern (not diverging like the two
-    // side trails), roughly covering the area a rider actually rides and
-    // jumps from.
+    // The boat's immediate wake trough - a wide, short foam patch running
+    // straight back from the stern, covering the area the rider actually
+    // rides and jumps from.
     public float centralWakeLength = 18f;
     public float centralWakeWidth = 3f;
 
-    // The wake decal must sit at the water surface, not at the boat's own
-    // height. boat.position.y (0.5) is the hull's height above the water,
-    // and the rider's board rests just above the water too (baseHeight in
-    // RiderController is 0.05), so if the wake reused boat.position.y it
-    // would float ~0.5 units above both the water and the rider - genuinely
-    // closer to an elevated, looking-down camera, so depth testing would
-    // (correctly, given that wrong height) draw it in front of the board and
-    // rider instead of under them. Anchoring to a fixed water height instead
-    // of boat.position.y keeps it below the rider so the rider always
-    // occludes it.
+    // Anchored to a fixed water height rather than the boat's own height,
+    // since the boat sits well above the water while the rider's board sits
+    // right at it - using the boat's height would draw the wake in front of
+    // the rider instead of underneath them.
     //
-    // It sits a hair above the water plane's own y=0 (rather than exactly on
-    // it) because two coplanar surfaces at identical depth flicker between
-    // frames as floating-point rounding randomly picks the winner each draw -
-    // that's the "blinking". A small, deliberate gap makes the wake
-    // unambiguously above the water while staying comfortably below the
-    // rider's board.
+    // Sits slightly above the water's actual surface rather than exactly on
+    // it, since two perfectly overlapping flat surfaces flicker between
+    // frames (floating-point rounding).
     public float waterHeight = 0.02f;
 
     // How fast the foam texture's UV drifts along each ribbon's length, for
@@ -62,8 +50,8 @@ public class WakeRenderer : MonoBehaviour
         foamMaterial.mainTexture = CreateFoamTexture();
         foamMaterial.mainTextureScale = new Vector2(1f, 6f);
 
-        // Narrow where it peels off the hull, quickly fanning out - the
-        // classic V-wake spreading-and-fading-with-distance look.
+        // Narrow near the hull, fanning out with distance - the classic
+        // V-wake look.
         AnimationCurve trailWidth = new AnimationCurve(
             new Keyframe(0f, 0.3f),
             new Keyframe(0.2f, 1f),
@@ -73,8 +61,7 @@ public class WakeRenderer : MonoBehaviour
         rightTrail = CreateRibbon("WakeTrailRight", 0.6f, trailWidth,
             new Color(1f, 1f, 1f, 0.8f), new Color(1f, 1f, 1f, 0f));
 
-        // Wide right behind the boat, tapering as the churn settles - the
-        // bigger foam patch the rider actually rides and jumps out of.
+        // Wide right behind the boat, tapering as the churn settles.
         AnimationCurve centralWidth = new AnimationCurve(
             new Keyframe(0f, 1f),
             new Keyframe(0.4f, 0.85f),
@@ -99,13 +86,9 @@ public class WakeRenderer : MonoBehaviour
         line.endColor = endColor;
         line.useWorldSpace = true;
 
-        // Default (View) alignment billboards the ribbon to face the camera,
-        // which tilts it up off the water toward an angled third-person
-        // camera - making it stick up and cover the board/rider instead of
-        // lying flat on the surface. TransformZ alignment keeps the ribbon's
-        // width in the plane perpendicular to this transform's local Z axis,
-        // so pointing that axis straight up keeps the ribbon flat on the
-        // water (in the horizontal XZ plane) regardless of camera angle.
+        // Default billboard alignment would tilt the ribbon to face the
+        // camera, lifting it off the water. TransformZ alignment keeps it
+        // flat on the water instead, regardless of camera angle.
         line.alignment = LineAlignment.TransformZ;
         go.transform.rotation = Quaternion.LookRotation(Vector3.up, Vector3.forward);
 
@@ -140,9 +123,8 @@ public class WakeRenderer : MonoBehaviour
         }
     }
 
-    // A patchy white-noise alpha mask (two blended Perlin octaves) rather
-    // than a flat color, so the foam reads as uneven clumps of whitewater
-    // instead of a smooth painted stripe.
+    // Blended noise so the foam reads as uneven clumps of whitewater rather
+    // than a smooth painted stripe.
     Texture2D CreateFoamTexture()
     {
         int size = 64;

@@ -1,17 +1,10 @@
 using UnityEngine;
 
-// Turns a flat land strip into rolling, tree-covered hills, built entirely
-// from primitives (no imported meshes/textures, matching the rest of the
-// project). Hills are squashed spheres poking up out of the ground; trees
-// are cheap "lollipop" shapes (a cylinder trunk plus a sphere canopy)
-// scattered across each hill's dome so it reads as forest rather than bare
-// ground.
-//
-// This is deliberately NOT parented under the land plane itself - that
-// plane has a large non-uniform localScale (see GameBootstrap.CreateLand),
-// and parenting world-space-sized children under a scaled transform would
-// warp their sizes by that scale. It lives on its own identity-scale
-// GameObject instead.
+// Turns a flat strip of land into rolling, tree-covered hills - all built
+// from basic shapes (squashed spheres for hills, cylinder-plus-sphere
+// "lollipop" trees), no imported models. Lives on its own object rather than
+// as a child of the land plane, since that plane's stretched scale would
+// distort the hills and trees' sizes.
 public class LandFeatures : MonoBehaviour
 {
     // X distance from the world's center line to the water's edge - hills
@@ -43,22 +36,18 @@ public class LandFeatures : MonoBehaviour
     static readonly Color CanopyColor = new Color(0.16f, 0.42f, 0.15f);
     static readonly Color TrunkColor = new Color(0.35f, 0.25f, 0.12f);
 
-    // Not built from Awake(): GameBootstrap adds this component and then
-    // sets innerEdgeX/stripWidth/stripHalfLength/side on the very next
-    // lines, but AddComponent() runs Awake() synchronously before those
-    // assignments happen, so building here would run with all the fields
-    // still at their zero defaults. GameBootstrap calls this explicitly
-    // once the fields are set instead.
+    // Called explicitly by GameBootstrap after it sets the size/position
+    // fields above, since Awake() would otherwise run before those fields
+    // are assigned.
     public void Generate()
     {
         if (hillMaterials == null) hillMaterials = new Material[HillColors.Length];
         Build();
     }
 
-    // Clones whatever shader CreatePrimitive() actually gave the object
-    // (Standard for the Built-in pipeline, URP/Lit under URP, etc.) instead
-    // of hardcoding a shader name - same pipeline-agnostic approach the
-    // rest of the project uses (see GameBootstrap.SetColor).
+    // Clones whatever shader Unity's primitive already uses, rather than
+    // hardcoding one, so this keeps working under different render
+    // pipelines.
     static Material CloneMaterial(Renderer r, Color color)
     {
         Material mat = new Material(r.sharedMaterial);
@@ -81,8 +70,8 @@ public class LandFeatures : MonoBehaviour
 
     void BuildHill(int index, float hz)
     {
-        // Deterministic per-hill pseudo-randomness so the layout is stable
-        // for the life of the session instead of reshuffling every reload.
+        // Deterministic per-hill randomness so the layout stays the same for
+        // the whole session instead of reshuffling on reload.
         System.Random rng = new System.Random(index * 7919 + side * 104729);
 
         float hillRadius = Mathf.Lerp(18f, 40f, (float)rng.NextDouble());
@@ -107,9 +96,8 @@ public class LandFeatures : MonoBehaviour
         for (int i = 0; i < treesPerHill; i++)
         {
             float angle = (float)(rng.NextDouble() * Mathf.PI * 2f);
-            // Bias toward the outer part of the dome (sqrt of a uniform
-            // value spreads samples toward the edge of the disc) so trees
-            // don't all bunch up right at the hill's peak.
+            // Biases trees toward the outer part of the hill so they don't
+            // all bunch up at the peak.
             float dist = hillRadius * Mathf.Sqrt((float)rng.NextDouble()) * 0.9f;
             float tx = hx + Mathf.Cos(angle) * dist;
             float tz = hz + Mathf.Sin(angle) * dist;

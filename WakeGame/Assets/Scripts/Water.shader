@@ -1,12 +1,8 @@
-// Lightweight animated lake water: no fluid simulation and no vertex
-// displacement (the water plane's actual geometry/collision never
-// changes, so nothing about water "physics" is touched - there wasn't any
-// to begin with, it's a purely visual plane). All motion is a per-pixel
-// analytic normal perturbation from a small sum of directional sine waves,
-// so it costs the same regardless of how coarse the underlying mesh is,
-// combined with a cheap fresnel "sky" highlight standing in for real
-// reflections and a scrolling ripple texture (still fed in from
-// WaterScroll.cs) for extra surface variation.
+// Animated lake water with no real physics or geometry changes - it's a
+// purely visual plane. Wave motion comes from summing a couple of sine waves
+// per pixel (cheap, and independent of how detailed the mesh is), plus a
+// fresnel "sky" highlight standing in for real reflections and a scrolling
+// ripple texture for extra variation.
 Shader "Custom/Water"
 {
     Properties
@@ -47,10 +43,9 @@ Shader "Custom/Water"
             float3 viewDir;
         };
 
-        // Two directional sine waves at different angles/frequencies,
-        // summed - a cheap stand-in for a real wave spectrum. Returns the
-        // gradient analytically (exact derivative of the sine sum) so the
-        // normal doesn't need extra texture samples or neighbor lookups.
+        // Two sine waves at different angles, summed as a cheap stand-in for
+        // a real wave pattern. Returns the exact slope of that sum directly,
+        // so no extra texture lookups are needed to compute lighting.
         float2 WaveGradient(float2 pos, float time)
         {
             float2 dirA = normalize(float2(1.0, 0.35));
@@ -77,18 +72,13 @@ Shader "Custom/Water"
             fixed4 tex = tex2D(_MainTex, IN.uv_MainTex);
             fixed3 baseColor = _Color.rgb * (0.85 + tex.r * 0.3);
 
-            // Tangent-space normal perturbation: z stays near 1 (mostly
-            // facing straight out) while x/y lean with the wave slope -
-            // works regardless of the mesh's world orientation, since
-            // Surface Shaders convert this to world space automatically
-            // using the plane's own tangent basis.
+            // Tilts the surface normal based on the wave slope, so lighting
+            // catches it like a bumpy surface instead of a flat one.
             float3 tangentNormal = normalize(float3(-gradient.x * _WaveStrength, -gradient.y * _WaveStrength, 1.0));
 
-            // The plane is always exactly flat/horizontal, so its true
-            // world-space geometric normal is just world-up - viewDir here
-            // is world space too, so this is a straightforward grazing-angle
-            // (fresnel) term without needing the tangent-space normal above
-            // converted into world space.
+            // The water plane is always flat, so its true surface normal is
+            // just straight up - this is a simple grazing-angle (fresnel)
+            // highlight based on that.
             float fresnel = pow(1.0 - saturate(dot(normalize(IN.viewDir), float3(0, 1, 0))), _FresnelPower);
             fixed3 finalColor = lerp(baseColor, _FresnelColor.rgb, fresnel * 0.6);
 

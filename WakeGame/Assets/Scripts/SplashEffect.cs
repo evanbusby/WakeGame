@@ -1,8 +1,7 @@
 using UnityEngine;
 
-// A lightweight, code-only water-spray effect (no imported textures or
-// materials, matching the rest of this project). Reused for the rider's
-// board spray, the wake-landing splash, and the boat's rooster tail.
+// A lightweight, code-only water-spray effect, reused for the rider's board
+// spray, the wake-landing splash, and the boat's rooster tail.
 public class SplashEffect : MonoBehaviour
 {
     public Color color = new Color(0.85f, 0.92f, 1f, 0.85f);

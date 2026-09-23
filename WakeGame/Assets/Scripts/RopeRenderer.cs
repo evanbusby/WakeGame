@@ -7,22 +7,17 @@ public class RopeRenderer : MonoBehaviour
     public Vector3 boatOffset = new Vector3(0f, 0.55f, -1.5f);
     public Vector3 riderOffset = new Vector3(0f, 0.3f, 0.3f);
 
-    // On a real handle pass, the rope briefly routes behind the rider's back
-    // as it's handed from one grip to the other during a spin. We don't
-    // simulate individual hands, so this fakes it: for a short window the
-    // rope's midpoint bulges out behind the rider's back and returns, giving
-    // a visible "passing it around the body" cue instead of the rope just
-    // snapping straight through the spin.
+    // On a real handle pass, the rope briefly swings behind the rider's back
+    // as it's handed from one hand to the other during a spin. This fakes
+    // that: for a short window the rope's midpoint bulges out behind the
+    // back instead of just snapping straight through the spin.
     public float passDuration = 0.35f;
     float passTimer = 0f;
 
-    // riderOffset.z is authored assuming the rider's local +Z ("front") is
-    // the hand nearer the boat - true when riding regular, flipped when
-    // riding switch (or mid-spin, past the point of facing the boat
-    // side-on). Rather than trust spinDeg bookkeeping, this checks the
-    // rider's actual world-space facing against the boat's actual position,
-    // so the rope finds the true leading hand regardless of what caused the
-    // rotation - air spin, ground spin, or the stance recovering back.
+    // Which of the rider's hands is nearer the boat - true "front" when
+    // riding forward (regular), flipped when riding backward (switch) or
+    // mid-spin. This checks the rider's actual facing against the boat's
+    // position, so it stays correct no matter what caused the rotation.
     float frontSign = 1f;
 
     LineRenderer line;

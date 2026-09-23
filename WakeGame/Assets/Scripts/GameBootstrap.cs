@@ -89,17 +89,15 @@ public class GameBootstrap : MonoBehaviour
         GameObject land = GameObject.CreatePrimitive(PrimitiveType.Plane);
         land.name = name;
         land.transform.localScale = new Vector3(halfWidth / 5f, 1f, zScale);
-        // Sits a bit above the water plane's y=0, both so it reads as a
-        // raised shore rather than more water, and so the two planes aren't
-        // perfectly coplanar at the shared edge (which would z-fight/flicker
-        // exactly like the wake-vs-water flicker fixed earlier).
+        // Sits slightly above the water so it reads as a raised shore rather
+        // than more water, and so the two surfaces don't flicker where they
+        // meet (two overlapping flat surfaces can flicker due to rounding).
         land.transform.position = new Vector3(centerX, 0.1f, centerZ);
         land.AddComponent<LandScroll>();
 
-        // LandFeatures lives on its own identity-scale object rather than
-        // under the land plane, since that plane's transform carries a
-        // large non-uniform scale that would otherwise warp world-space
-        // sized hills/trees (see LandFeatures' own comment).
+        // LandFeatures lives on its own object rather than under the land
+        // plane, since that plane's stretched scale would distort the size
+        // of the hills and trees.
         int side = centerX >= 0f ? 1 : -1;
         float innerEdgeX = Mathf.Abs(centerX) - halfWidth;
 

@@ -1,19 +1,11 @@
 using UnityEngine;
 
-// Purely cosmetic detail on top of the existing boat hull cube (built and
-// driven entirely by GameBootstrap/BoatMover) - a windshield, rub-rails,
-// an engine cover, and two seats, each with its own PBR material. This
-// project targets the Built-in Render Pipeline (confirmed via
-// ProjectSettings/GraphicsSettings.asset - no custom render pipeline
-// asset assigned), so Standard is a safe, direct shader name here and
-// gets real specular highlights plus a cheap skybox-based reflection for
-// free, with no reflection probes or real-time reflections to set up.
-// Stays mobile-friendly by keeping geometry to a handful of extra
-// primitive boxes (no imported meshes, no added draw-call-heavy effects)
-// and using opaque materials throughout - even the windshield, which
-// fakes "glass" with a light color and high smoothness rather than actual
-// alpha transparency, since transparency/sorting overdraw is one of the
-// pricier things to avoid on low-end mobile GPUs.
+// Cosmetic detail added on top of the plain boat hull cube - a windshield,
+// rub-rails, an engine cover, and seats. Uses Unity's built-in "Standard"
+// shader for cheap, realistic-looking reflections, and keeps everything
+// opaque (even the "glass" windshield, which just fakes the look with color
+// and shininess) since transparency is expensive to render on low-end mobile
+// GPUs.
 public class BoatRig : MonoBehaviour
 {
     static readonly Color HullColor = new Color(0.55f, 0.1f, 0.07f);
@@ -28,30 +20,25 @@ public class BoatRig : MonoBehaviour
 
     void Build()
     {
-        // Re-materials the hull box (this same GameObject) rather than
-        // replacing its geometry - BoatMover, the rope, the wake anchor
-        // and the rooster tail all reference this transform/scale/
-        // collider directly, so none of that is touched.
+        // Re-materials the existing hull object rather than replacing it,
+        // since other scripts (BoatMover, the rope, the wake, the rooster
+        // tail) reference this transform directly.
         ApplyMaterial(gameObject, HullColor, metallic: 0.25f, smoothness: 0.55f);
 
-        // This transform's own scale (1.5, 1, 3) is non-uniform and load-
-        // bearing for other scripts' hardcoded offsets (tow point, wake
-        // anchor, rooster tail), so it can't change. Detail parts are
-        // built under a child with the reciprocal scale instead, which
-        // cancels the parent's scale back out to an effective 1:1 - so
-        // the positions/sizes below can be authored directly in the
-        // boat's own world-space half-extents (0.75 x 0.5 x 1.5) rather
-        // than having to divide every number by (1.5, 1, 3) by hand.
+        // The boat's own scale is stretched and non-uniform, and other
+        // scripts depend on it staying that way. Detail parts are built
+        // under a child object with the inverse scale, which cancels that
+        // stretch back out to 1:1, so positions below can be authored in
+        // normal real-world units.
         GameObject visuals = new GameObject("BoatVisuals");
         visuals.transform.SetParent(transform, false);
         Vector3 parentScale = transform.localScale;
         visuals.transform.localScale = new Vector3(1f / parentScale.x, 1f / parentScale.y, 1f / parentScale.z);
         Transform v = visuals.transform;
 
-        // Boat forward (+Z) is the bow; rub-rails run most of the hull's
-        // length just below deck height, the windshield sits forward of
-        // the seats and is raked back, and the engine cover sits toward
-        // the stern (-Z).
+        // Boat forward (+Z) is the bow (front): rub-rails run along the
+        // hull's sides, the windshield sits ahead of the seats, and the
+        // engine cover sits toward the stern (back).
         CreatePart(v, PrimitiveType.Cube, "Windshield",
             new Vector3(0f, 0.68f, 0.55f), Quaternion.Euler(-20f, 0f, 0f),
             new Vector3(1.3f, 0.5f, 0.06f), WindshieldColor, metallic: 0.1f, smoothness: 0.85f);
