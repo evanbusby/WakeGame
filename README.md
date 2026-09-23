@@ -32,14 +32,14 @@ The entire scene is generated procedurally in code at startup (GameBootstrap.cs)
    ```
    git clone <repo-url>
    ```
-2. Open Unity Hub and add the `WakeboatGame` folder as a project.
+2. Open Unity Hub and add the `WakeGame` folder as a project.
 3. Open the project, then open the `WakeboardScene` scene (`Assets/Scenes/WakeboardScene.unity`).
 4. Press Play in the Unity editor.
 
 ## Project Structure
 
 ```
-WakeboatGame/
+WakeGame/
 ├── Assets/
 │   ├── Scenes/          # Main scene (WakeboardScene)
 │   └── Scripts/         # Gameplay, physics, and rendering scripts
