@@ -2,8 +2,22 @@ using UnityEngine;
 
 public class GameBootstrap : MonoBehaviour
 {
+    // Set by PauseMenu's Reset option just before it reloads the scene, so
+    // this run goes straight back into gameplay instead of showing the main
+    // menu again. Consumed (reset to false) as soon as it's read, so a
+    // normal scene load - including the Main Menu option, which leaves this
+    // false - still shows the menu as usual.
+    public static bool skipMenuOnLoad = false;
+
     void Awake()
     {
+        if (skipMenuOnLoad)
+        {
+            skipMenuOnLoad = false;
+            StartGame();
+            return;
+        }
+
         GameObject menuObj = new GameObject("MainMenu");
         MainMenu menu = menuObj.AddComponent<MainMenu>();
         menu.bootstrap = this;
@@ -89,6 +103,9 @@ public class GameBootstrap : MonoBehaviour
         Light light = lightObj.AddComponent<Light>();
         light.type = LightType.Directional;
         lightObj.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+
+        GameObject pauseObj = new GameObject("PauseMenu");
+        pauseObj.AddComponent<PauseMenu>();
     }
 
     void CreateLand(string name, float centerX, float halfWidth, float centerZ, float zScale)
