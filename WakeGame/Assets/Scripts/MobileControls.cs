@@ -1,12 +1,14 @@
 using UnityEngine;
+#if UNITY_WEBGL && !UNITY_EDITOR
+using System.Runtime.InteropServices;
+#endif
 
 // On-screen touch controls for mobile/touch browsers only: a steering
 // joystick (bottom-left, horizontal-only) and a trick joystick (bottom-
 // right, free 2D - not locked to one axis the way the steering stick is),
 // plus tapping anywhere else on the screen to bunny hop. IsMobile is false
-// on a desktop browser (no touch support), and this component draws and
-// reads nothing when it's false, so none of this can be seen or used on a
-// computer.
+// on a desktop browser, and this component draws and reads nothing when
+// it's false, so none of this can be seen or used on a computer.
 //
 // Exposes its state as static fields that RiderController ORs in alongside
 // its existing Input.GetKey(...)/GetKeyDown(...) checks, so desktop and
@@ -14,7 +16,38 @@ using UnityEngine;
 // physics path.
 public class MobileControls : MonoBehaviour
 {
-    public static bool IsMobile => Application.isMobilePlatform || Input.touchSupported;
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    static extern int WG_IsMobileBrowser();
+#endif
+
+    static bool? isMobileCached;
+
+    // Application.isMobilePlatform is only ever true on an actual Android/
+    // iOS build, and Input.touchSupported is unreliable for a published
+    // WebGL build - many desktop browsers report touch support with no
+    // touchscreen present (Windows precision touchpads, devtools touch
+    // emulation, etc), which is exactly what made the joysticks show up on
+    // desktop on itch.io despite looking correct in the Editor. On WebGL
+    // this instead asks the browser's own user agent string via
+    // Assets/Plugins/WebGL/MobileDetect.jslib, the standard reliable way to
+    // tell a phone/tablet browser apart from a desktop one. Cached after the
+    // first check since it can't change during a session.
+    public static bool IsMobile
+    {
+        get
+        {
+            if (!isMobileCached.HasValue)
+            {
+#if UNITY_WEBGL && !UNITY_EDITOR
+                isMobileCached = WG_IsMobileBrowser() != 0;
+#else
+                isMobileCached = Application.isMobilePlatform;
+#endif
+            }
+            return isMobileCached.Value;
+        }
+    }
 
     public static bool SteerLeft { get; private set; }
     public static bool SteerRight { get; private set; }
