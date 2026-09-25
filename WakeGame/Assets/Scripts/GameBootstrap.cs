@@ -4,6 +4,13 @@ public class GameBootstrap : MonoBehaviour
 {
     void Awake()
     {
+        GameObject menuObj = new GameObject("MainMenu");
+        MainMenu menu = menuObj.AddComponent<MainMenu>();
+        menu.bootstrap = this;
+    }
+
+    public void StartGame()
+    {
         GameObject water = GameObject.CreatePrimitive(PrimitiveType.Plane);
         water.name = "Water";
         water.transform.localScale = new Vector3(50f, 1f, 500f);
