@@ -27,7 +27,7 @@ public class CameraFollow : MonoBehaviour
     // camera would, rather than distorting the lens further. Gated to
     // MobileControls.IsMobile so desktop is never affected, even if a
     // desktop browser window is resized to a narrow/tall shape.
-    public float maxMobileDistanceScale = 1.8f;
+    public float maxMobileDistanceScale = 1.15f;
 
     Camera cam;
 
