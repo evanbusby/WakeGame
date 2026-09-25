@@ -166,8 +166,8 @@ public class RiderController : MonoBehaviour
         bool isAirborne = airHeight > 0f;
 
         float inputSign = 0f;
-        if (Input.GetKey(KeyCode.A)) inputSign -= 1f;
-        if (Input.GetKey(KeyCode.D)) inputSign += 1f;
+        if (Input.GetKey(KeyCode.A) || MobileControls.SteerLeft) inputSign -= 1f;
+        if (Input.GetKey(KeyCode.D) || MobileControls.SteerRight) inputSign += 1f;
 
         if (isAirborne)
         {
@@ -176,8 +176,8 @@ public class RiderController : MonoBehaviour
             groundSpinning = false;
 
             float spinInput = 0f;
-            if (Input.GetKey(KeyCode.LeftArrow)) spinInput -= 1f;
-            if (Input.GetKey(KeyCode.RightArrow)) spinInput += 1f;
+            if (Input.GetKey(KeyCode.LeftArrow) || MobileControls.SpinLeft) spinInput -= 1f;
+            if (Input.GetKey(KeyCode.RightArrow) || MobileControls.SpinRight) spinInput += 1f;
             spinDeg += spinInput * spinRateDegPerSec * Time.deltaTime;
         }
         else if (groundSpinning)
@@ -194,8 +194,8 @@ public class RiderController : MonoBehaviour
             // Can't turn and spin on the water at the same time, so only
             // start a surface spin when the player isn't actively steering.
             float groundSpinDir = 0f;
-            if (Input.GetKeyDown(KeyCode.LeftArrow)) groundSpinDir = -1f;
-            else if (Input.GetKeyDown(KeyCode.RightArrow)) groundSpinDir = 1f;
+            if (Input.GetKeyDown(KeyCode.LeftArrow) || MobileControls.SpinLeftDown) groundSpinDir = -1f;
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || MobileControls.SpinRightDown) groundSpinDir = 1f;
 
             if (groundSpinDir != 0f)
             {
@@ -240,7 +240,11 @@ public class RiderController : MonoBehaviour
 
         if (!isAirborne)
         {
-            if (Input.GetKeyDown(KeyCode.Space))
+            // Read unconditionally (not just as the || operand) so a queued
+            // mobile tap is always consumed exactly once this frame, even
+            // when Space was also pressed.
+            bool mobileBunnyHop = MobileControls.ConsumeBunnyHop();
+            if (Input.GetKeyDown(KeyCode.Space) || mobileBunnyHop)
             {
                 verticalVelocity = bunnyHopVelocity;
             }
@@ -310,8 +314,8 @@ public class RiderController : MonoBehaviour
         }
         else if (!isFlipping && !isRaleying)
         {
-            bool frontInput = Input.GetKey(KeyCode.UpArrow);
-            bool backInput = Input.GetKey(KeyCode.DownArrow);
+            bool frontInput = Input.GetKey(KeyCode.UpArrow) || MobileControls.LeanForward;
+            bool backInput = Input.GetKey(KeyCode.DownArrow) || MobileControls.LeanBack;
             // Both keys held together is always treated as a raley attempt
             // (or nothing, if the launch didn't qualify) so it can't fall
             // through to the single-key flip case below.

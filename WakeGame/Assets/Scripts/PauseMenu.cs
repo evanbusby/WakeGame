@@ -8,6 +8,12 @@ using UnityEngine.SceneManagement;
 // the overlay instead of needing to be hidden or faked.
 public class PauseMenu : MonoBehaviour
 {
+    // Read by MobileControls so its joysticks/tap-to-jump go fully inert
+    // while the pause overlay is up, and so a touch on the pause button
+    // itself is never also treated as a bunny-hop tap.
+    public static bool IsPaused { get; private set; }
+    public static Rect PauseButtonRect => new Rect(24f, 24f, 60f, 60f);
+
     bool paused = false;
 
     Texture2D pauseIconTex;
@@ -50,8 +56,7 @@ public class PauseMenu : MonoBehaviour
 
     void DrawPauseButton()
     {
-        float size = 60f;
-        Rect rect = new Rect(24f, 24f, size, size);
+        Rect rect = PauseButtonRect;
 
         Rect shadowRect = rect;
         shadowRect.y += 6f;
@@ -149,6 +154,7 @@ public class PauseMenu : MonoBehaviour
     void SetPaused(bool value)
     {
         paused = value;
+        IsPaused = value;
         Time.timeScale = paused ? 0f : 1f;
     }
 
@@ -161,9 +167,13 @@ public class PauseMenu : MonoBehaviour
     void OnDestroy()
     {
         // Guards against the scene reloading (or this object being torn
-        // down) while paused, which would otherwise leave the next scene
-        // permanently frozen at timeScale 0.
+        // down) while paused - Reset/Main Menu reload the scene without
+        // calling SetPaused(false) first, and since IsPaused is static it
+        // would otherwise survive the reload and leave the next scene's
+        // MobileControls permanently thinking the game is paused, on top of
+        // leaving Time.timeScale stuck at 0.
         Time.timeScale = 1f;
+        IsPaused = false;
     }
 
     void BuildStyles()

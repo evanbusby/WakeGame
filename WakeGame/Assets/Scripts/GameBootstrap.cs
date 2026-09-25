@@ -106,6 +106,9 @@ public class GameBootstrap : MonoBehaviour
 
         GameObject pauseObj = new GameObject("PauseMenu");
         pauseObj.AddComponent<PauseMenu>();
+
+        GameObject mobileControlsObj = new GameObject("MobileControls");
+        mobileControlsObj.AddComponent<MobileControls>();
     }
 
     void CreateLand(string name, float centerX, float halfWidth, float centerZ, float zScale)
