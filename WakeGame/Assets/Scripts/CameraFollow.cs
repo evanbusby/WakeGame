@@ -18,6 +18,17 @@ public class CameraFollow : MonoBehaviour
     public float referenceAspect = 16f / 9f;
     public float maxFieldOfView = 100f;
 
+    // On an actual portrait phone screen, the aspect ratio is narrow enough
+    // that even the widened FOV above isn't quite enough to keep the rider's
+    // full swing in frame - and pushing the FOV even higher starts to look
+    // like a fisheye lens. Instead, on mobile only, this pulls the camera
+    // back along its existing offset direction as the aspect gets narrower,
+    // shrinking the rider's apparent angular swing the way backing up a real
+    // camera would, rather than distorting the lens further. Gated to
+    // MobileControls.IsMobile so desktop is never affected, even if a
+    // desktop browser window is resized to a narrow/tall shape.
+    public float maxMobileDistanceScale = 1.8f;
+
     Camera cam;
 
     void Awake()
@@ -29,13 +40,20 @@ public class CameraFollow : MonoBehaviour
     {
         if (target == null) return;
 
-        Vector3 desiredPosition = target.position + offset;
+        float aspect = cam != null ? cam.aspect : referenceAspect;
+
+        float distanceScale = 1f;
+        if (MobileControls.IsMobile && aspect < referenceAspect)
+        {
+            distanceScale = Mathf.Clamp(referenceAspect / Mathf.Max(aspect, 0.01f), 1f, maxMobileDistanceScale);
+        }
+
+        Vector3 desiredPosition = target.position + offset * distanceScale;
         transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime);
         transform.LookAt(target.position + Vector3.up * 1.5f);
 
         if (cam != null)
         {
-            float aspect = cam.aspect;
             if (aspect < referenceAspect)
             {
                 float baseHalfVerticalRad = baseFieldOfView * 0.5f * Mathf.Deg2Rad;
