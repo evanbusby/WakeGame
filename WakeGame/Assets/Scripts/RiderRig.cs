@@ -184,7 +184,16 @@ public class RiderRig : MonoBehaviour
         if (col != null) Destroy(col);
 
         Renderer r = part.GetComponent<Renderer>();
-        if (r != null) r.material.color = color;
+        if (r != null)
+        {
+            // Uses Custom/SimpleLit explicitly (rather than tinting the
+            // primitive's default material) since the default material's
+            // Standard shader gets stripped from WebGL builds - see
+            // SimpleLit.shader.
+            Material mat = new Material(Shader.Find("Custom/SimpleLit"));
+            mat.color = color;
+            r.material = mat;
+        }
 
         return part;
     }

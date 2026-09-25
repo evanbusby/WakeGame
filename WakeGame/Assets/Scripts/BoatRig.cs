@@ -1,11 +1,12 @@
 using UnityEngine;
 
 // Cosmetic detail added on top of the plain boat hull cube - a windshield,
-// rub-rails, an engine cover, and seats. Uses Unity's built-in "Standard"
-// shader for cheap, realistic-looking reflections, and keeps everything
-// opaque (even the "glass" windshield, which just fakes the look with color
-// and shininess) since transparency is expensive to render on low-end mobile
-// GPUs.
+// rub-rails, an engine cover, and seats. Uses the project's Custom/SimpleLit
+// shader (a Standard-shader stand-in that survives WebGL build stripping,
+// see SimpleLit.shader) for cheap, realistic-looking reflections, and keeps
+// everything opaque (even the "glass" windshield, which just fakes the look
+// with color and shininess) since transparency is expensive to render on
+// low-end mobile GPUs.
 public class BoatRig : MonoBehaviour
 {
     static readonly Color HullColor = new Color(0.55f, 0.1f, 0.07f);
@@ -82,7 +83,7 @@ public class BoatRig : MonoBehaviour
         Renderer r = go.GetComponent<Renderer>();
         if (r == null) return;
 
-        Material mat = new Material(Shader.Find("Standard"));
+        Material mat = new Material(Shader.Find("Custom/SimpleLit"));
         mat.color = color;
         mat.SetFloat("_Metallic", metallic);
         mat.SetFloat("_Glossiness", smoothness);

@@ -15,10 +15,17 @@ public class LandScroll : MonoBehaviour
     void Awake()
     {
         rend = GetComponent<Renderer>();
-        rend.material.mainTexture = CreateGrassTexture();
+
+        // Uses Custom/SimpleLit explicitly (rather than texturing the
+        // primitive's default material) since the default material's
+        // Standard shader gets stripped from WebGL builds - see
+        // SimpleLit.shader.
+        Material mat = new Material(Shader.Find("Custom/SimpleLit"));
+        mat.mainTexture = CreateGrassTexture();
 
         Vector3 scale = transform.localScale;
-        rend.material.mainTextureScale = new Vector2(scale.x * 0.2f, scale.z * 0.4f);
+        mat.mainTextureScale = new Vector2(scale.x * 0.2f, scale.z * 0.4f);
+        rend.material = mat;
     }
 
     void Update()

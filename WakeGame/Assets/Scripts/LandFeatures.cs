@@ -45,12 +45,12 @@ public class LandFeatures : MonoBehaviour
         Build();
     }
 
-    // Clones whatever shader Unity's primitive already uses, rather than
-    // hardcoding one, so this keeps working under different render
-    // pipelines.
-    static Material CloneMaterial(Renderer r, Color color)
+    // Uses Custom/SimpleLit explicitly (rather than cloning the primitive's
+    // default material) since the default material's Standard shader gets
+    // stripped from WebGL builds - see SimpleLit.shader.
+    static Material CreateMaterial(Color color)
     {
-        Material mat = new Material(r.sharedMaterial);
+        Material mat = new Material(Shader.Find("Custom/SimpleLit"));
         mat.color = color;
         return mat;
     }
@@ -89,7 +89,7 @@ public class LandFeatures : MonoBehaviour
         int colorIndex = index % hillMaterials.Length;
         if (hillMaterials[colorIndex] == null)
         {
-            hillMaterials[colorIndex] = CloneMaterial(hillRenderer, HillColors[colorIndex]);
+            hillMaterials[colorIndex] = CreateMaterial(HillColors[colorIndex]);
         }
         hillRenderer.sharedMaterial = hillMaterials[colorIndex];
 
@@ -121,7 +121,7 @@ public class LandFeatures : MonoBehaviour
         trunk.transform.localScale = new Vector3(0.4f, trunkHeight * 0.5f, 0.4f);
         StripCollider(trunk);
         Renderer trunkRenderer = trunk.GetComponent<Renderer>();
-        if (trunkMaterial == null) trunkMaterial = CloneMaterial(trunkRenderer, TrunkColor);
+        if (trunkMaterial == null) trunkMaterial = CreateMaterial(TrunkColor);
         trunkRenderer.sharedMaterial = trunkMaterial;
 
         GameObject canopy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -131,7 +131,7 @@ public class LandFeatures : MonoBehaviour
         canopy.transform.localScale = Vector3.one * canopyRadius * 2f;
         StripCollider(canopy);
         Renderer canopyRenderer = canopy.GetComponent<Renderer>();
-        if (canopyMaterial == null) canopyMaterial = CloneMaterial(canopyRenderer, CanopyColor);
+        if (canopyMaterial == null) canopyMaterial = CreateMaterial(CanopyColor);
         canopyRenderer.sharedMaterial = canopyMaterial;
     }
 
